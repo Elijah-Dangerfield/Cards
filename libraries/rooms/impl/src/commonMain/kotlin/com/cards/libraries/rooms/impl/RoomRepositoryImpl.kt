@@ -124,13 +124,24 @@ class RoomRepositoryImpl(
         CreateRoomOutcome.NetworkError(e)
     }
 
-    override suspend fun joinRoom(code: String): JoinRoomOutcome =
-        joinRoomInternal(code).also { outcome ->
+    override suspend fun joinRoom(code: String): JoinRoomOutcome {
+        val knownStandingTable = activeRooms.value.any { it.code == code && it.standingTable != null }
+        return joinRoomInternal(code).also { outcome ->
             when (outcome) {
-                is JoinRoomOutcome.Success -> KLog.logEvent("room.joined")
-                else -> KLog.logEvent("room.join_failed", "reason" to outcome.eventReason())
+                is JoinRoomOutcome.Success -> KLog.logEvent(
+                    "room.joined",
+                    "is_standing_table" to (outcome.room.standingTable != null),
+                )
+                else -> KLog.logEvent(
+                    "room.join_failed",
+                    "reason" to outcome.eventReason(),
+                    "is_standing_table" to true.takeIf {
+                        knownStandingTable || outcome == JoinRoomOutcome.StandingTableClosed
+                    },
+                )
             }
         }
+    }
 
     private fun JoinRoomOutcome.eventReason(): String = when (this) {
         is JoinRoomOutcome.Success -> "none"

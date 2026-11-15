@@ -31,6 +31,10 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
+import kotlin.test.BeforeTest
+import kotlin.test.AfterTest
+import kotlin.test.assertFalse
+import com.dangerfield.cards.libraries.core.logging.KLog
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -44,6 +48,55 @@ import kotlin.test.assertTrue
  * deserialization path. Misses bugs from a hand-rolled fake.
  */
 class RoomRepositoryImplTest : CoroutineTest() {
+    private val logs = RecordingRoomLogTree()
+
+    @BeforeTest
+    fun recordLogs() {
+        KLog.plant(logs)
+    }
+
+    @AfterTest
+    fun clearLogs() {
+        KLog.clearTrees()
+    }
+
+    @Test
+    fun joinedEventIdentifiesStandingAndOrdinaryTablesWithoutRoomIdentity() = runUnitTest {
+        val summary = """"standingTable":{"name":"Private friends","weekday":4,"localTime":"20:00","timeZone":"America/New_York","nextStartsAt":"2026-11-20T01:00:00Z"},"""
+        val standingResponse = JOIN_RESPONSE_JSON_FRESH.replace("\"members\":", summary + "\"members\":")
+        assertIs<JoinRoomOutcome.Success>(newRepo(MockEngine { respondJson(HttpStatusCode.OK, standingResponse) }).joinRoom("ABC123"))
+        assertEquals(true, logs.events("room.joined").single().context.extras["is_standing_table"])
+        logs.entries.clear()
+        assertIs<JoinRoomOutcome.Success>(newRepo(MockEngine { respondJson(HttpStatusCode.OK, JOIN_RESPONSE_JSON_FRESH) }).joinRoom("ABC123"))
+        val entry = logs.events("room.joined").single()
+        assertEquals(false, entry.context.extras["is_standing_table"])
+        assertFalse(entry.context.extras.keys.any { it in setOf("code", "name", "user_id") })
+    }
+
+    @Test
+    fun failedJoinOnlyAttributesStandingTableWhenKnown() = runUnitTest {
+        val unknown = newRepo(MockEngine { respondError(HttpStatusCode.NotFound) })
+        assertEquals(JoinRoomOutcome.NotFound, unknown.joinRoom("ABC123"))
+        assertFalse("is_standing_table" in logs.events("room.join_failed").single().context.extras)
+        logs.entries.clear()
+        val closed = newRepo(MockEngine { respondJson(HttpStatusCode.NotFound, """{"error":{"code":"standing_table_closed","message":"closed"}}""") })
+        assertEquals(JoinRoomOutcome.StandingTableClosed, closed.joinRoom("ABC123"))
+        assertEquals(true, logs.events("room.join_failed").single().context.extras["is_standing_table"])
+    }
+
+    @Test
+    fun failedJoinRetainsKnownStandingAttributionFromPreviousSnapshot() = runUnitTest {
+        val summary = """"standingTable":{"name":"Private friends","weekday":4,"localTime":"20:00","timeZone":"America/New_York","nextStartsAt":"2026-11-20T01:00:00Z"},"""
+        val standingResponse = JOIN_RESPONSE_JSON_FRESH.replace("\"members\":", summary + "\"members\":")
+        var joined = false
+        val repo = newRepo(MockEngine {
+            if (joined) respondJson(HttpStatusCode.Conflict, """{"error":{"code":"room_full","message":"full"}}""")
+            else { joined = true; respondJson(HttpStatusCode.OK, standingResponse) }
+        })
+        assertIs<JoinRoomOutcome.Success>(repo.joinRoom("ABC123"))
+        assertEquals(JoinRoomOutcome.Full, repo.joinRoom("ABC123"))
+        assertEquals(true, logs.events("room.join_failed").single().context.extras["is_standing_table"])
+    }
 
     @Test
     fun joinRoom_archivedStandingCode_returnsClosedOutcome() = runUnitTest {

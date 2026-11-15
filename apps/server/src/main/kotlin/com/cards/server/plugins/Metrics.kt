@@ -3,6 +3,7 @@ package com.dangerfield.cards.server.plugins
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.LongCounter
 import io.opentelemetry.api.metrics.Meter
 import io.opentelemetry.api.metrics.ObservableLongGauge
 import java.util.concurrent.atomic.AtomicLong
@@ -22,6 +23,8 @@ internal const val SERVER_METER_NAME = "com.dangerfield.cards.server"
  * rename touches one file regardless of which gauge / counter set it.
  */
 internal object MetricAttrs {
+    val Surface: AttributeKey<String> = AttributeKey.stringKey("surface")
+    val Outcome: AttributeKey<String> = AttributeKey.stringKey("outcome")
     val OrphanSweepTtlDays: AttributeKey<Long> = AttributeKey.longKey("orphan_sweep.ttl_days")
 }
 
@@ -33,10 +36,8 @@ internal object MetricAttrs {
  *
  * Why an object instead of an injectable singleton: mirrors the existing
  * [serverTracer] / [withSpan] pattern (top-level accessor, no DI), so
- * call sites — currently just the anon sweep — set values without taking
- * a constructor dependency. If the surface grows past a couple of
- * gauges, lift to DI; today the parallel-to-tracing shape keeps the
- * indirection cost off the metric path.
+ * call sites record values and categorical outcomes without taking
+ * a constructor dependency, matching the tracing API.
  *
  * Tests that build their own SDK via [buildOpenTelemetrySdk] should call
  * [register] after `GlobalOpenTelemetry.set(sdk)` so the callback binds
@@ -61,6 +62,9 @@ internal object ServerMetrics {
     private val anonOrphansTtlDays = AtomicLong(0L)
 
     private var anonOrphansGauge: ObservableLongGauge? = null
+    private var shareRequests: LongCounter? = null
+    private var standingJoins: LongCounter? = null
+    private var standingMaterializations: LongCounter? = null
 
     /**
      * Registers the observable gauges against the live [GlobalOpenTelemetry]
@@ -70,6 +74,15 @@ internal object ServerMetrics {
     @Synchronized
     fun register() {
         if (anonOrphansGauge != null) return
+        shareRequests = serverMeter.counterBuilder("cards.standing_tables.share.requests")
+            .setDescription("Completed public invite requests by surface and semantic outcome; excludes static assets and cancelled requests.")
+            .setUnit("{request}").build()
+        standingJoins = serverMeter.counterBuilder("cards.standing_tables.join.requests")
+            .setDescription("Completed join requests positively attributed to a standing table.")
+            .setUnit("{request}").build()
+        standingMaterializations = serverMeter.counterBuilder("cards.standing_tables.materializations")
+            .setDescription("Standing room materialization attempts, including concurrent requests reusing an existing sitting.")
+            .setUnit("{attempt}").build()
         anonOrphansGauge = serverMeter
             .gaugeBuilder("cards.anon_orphans.over_ttl")
             .ofLongs()
@@ -101,11 +114,26 @@ internal object ServerMetrics {
         anonOrphansOverTtl.set(count)
     }
 
+    fun recordShareRequest(surface: ShareSurface, outcome: ShareOutcome) {
+        shareRequests?.add(1L, Attributes.of(MetricAttrs.Surface, surface.label, MetricAttrs.Outcome, outcome.label))
+    }
+
+    fun recordStandingJoin(outcome: StandingJoinOutcome) {
+        standingJoins?.add(1L, Attributes.of(MetricAttrs.Outcome, outcome.label))
+    }
+
+    fun recordStandingMaterialization(outcome: StandingMaterializationOutcome) {
+        standingMaterializations?.add(1L, Attributes.of(MetricAttrs.Outcome, outcome.label))
+    }
+
     /** Tear down the registered callbacks. Tests only. */
     @Synchronized
     internal fun reset() {
         anonOrphansGauge?.close()
         anonOrphansGauge = null
+        shareRequests = null
+        standingJoins = null
+        standingMaterializations = null
         anonOrphansOverTtl.set(-1L)
         anonOrphansTtlDays.set(0L)
     }

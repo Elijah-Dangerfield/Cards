@@ -1,0 +1,383 @@
+{
+  "apiVersion": 1,
+  "groups": [
+    {
+      "orgId": 1,
+      "name": "Standing tables health",
+      "folder": "Downcard - Engineering",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "st-client-errors",
+          "title": "Standing table client operations failing",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "queryType": "instant",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "__LOKI_UID__",
+              "model": {
+                "refId": "A",
+                "expr": "(100 * ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" | outcome=\"failure\" | reason=~\"network|server|decode\" [1h]))) or (0 * ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" [1h]))) > 0))) / ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" [1h]))) > 0) > bool 20) * ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" [1h]))) >= bool 20)",
+                "instant": true,
+                "queryType": "instant",
+                "intervalMs": 60000,
+                "maxDataPoints": 1
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "C"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "10m",
+          "isPaused": true,
+          "labels": {
+            "severity": "warning",
+            "feature": "standing_tables",
+            "environment": "__ENV__"
+          },
+          "annotations": {
+            "summary": "Standing table client operations failing",
+            "description": "Unexpected transport, server or decode failures. Invalid input, conflict, auth and expected offline results excluded. Rolling 1h; fires only above 20% with at least 20 requests and persists 10m. Quiet or absent traffic does not alert; query execution errors remain errors. Verify ingestion separately before activation.",
+            "__dashboardUid__": "dc-standing-tables"
+          }
+        },
+        {
+          "uid": "st-create-errors",
+          "title": "Standing table creation failing",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "queryType": "instant",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "__LOKI_UID__",
+              "model": {
+                "refId": "A",
+                "expr": "(100 * ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" | operation=\"create\" | outcome=\"failure\" | reason=~\"network|server|decode\" [1h]))) or (0 * ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" | operation=\"create\" [1h]))) > 0))) / ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" | operation=\"create\" [1h]))) > 0) > bool 20) * ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" | operation=\"create\" [1h]))) >= bool 10)",
+                "instant": true,
+                "queryType": "instant",
+                "intervalMs": 60000,
+                "maxDataPoints": 1
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "C"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "10m",
+          "isPaused": true,
+          "labels": {
+            "severity": "warning",
+            "feature": "standing_tables",
+            "environment": "__ENV__"
+          },
+          "annotations": {
+            "summary": "Standing table creation failing",
+            "description": "Unexpected create failures, not chooser abandonment or business refusals. Rolling 1h; fires only above 20% with at least 10 requests and persists 10m. Quiet or absent traffic does not alert; query execution errors remain errors. Verify ingestion separately before activation.",
+            "__dashboardUid__": "dc-standing-tables"
+          }
+        },
+        {
+          "uid": "st-share-errors",
+          "title": "Standing invite server errors",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "queryType": "instant",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "__PROMETHEUS_UID__",
+              "model": {
+                "refId": "A",
+                "expr": "(100 * ((sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__,outcome=\"error\"}[1h]))) or (0 * ((sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__}[1h]))) > 0))) / ((sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__}[1h]))) > 0) > bool 10) * ((sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__}[1h]))) >= bool 20)",
+                "instant": true,
+                "queryType": "instant",
+                "intervalMs": 60000,
+                "maxDataPoints": 1
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "C"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "10m",
+          "isPaused": true,
+          "labels": {
+            "severity": "warning",
+            "feature": "standing_tables",
+            "environment": "__ENV__"
+          },
+          "annotations": {
+            "summary": "Standing invite server errors",
+            "description": "Unexpected share page, calendar or image errors. Unknown and archived links do not count as errors. Rolling 1h; fires only above 10% with at least 20 requests and persists 10m. Quiet or absent traffic does not alert; query execution errors remain errors. Verify ingestion separately before activation.",
+            "__dashboardUid__": "dc-standing-tables"
+          }
+        },
+        {
+          "uid": "st-join-errors",
+          "title": "Standing table join server errors",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "queryType": "instant",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "__PROMETHEUS_UID__",
+              "model": {
+                "refId": "A",
+                "expr": "(100 * ((sum(increase(cards_standing_tables_join_requests_total{__SERVER_SELECTOR__,outcome=\"error\"}[1h]))) or (0 * ((sum(increase(cards_standing_tables_join_requests_total{__SERVER_SELECTOR__}[1h]))) > 0))) / ((sum(increase(cards_standing_tables_join_requests_total{__SERVER_SELECTOR__}[1h]))) > 0) > bool 10) * ((sum(increase(cards_standing_tables_join_requests_total{__SERVER_SELECTOR__}[1h]))) >= bool 10)",
+                "instant": true,
+                "queryType": "instant",
+                "intervalMs": 60000,
+                "maxDataPoints": 1
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "C"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "10m",
+          "isPaused": true,
+          "labels": {
+            "severity": "warning",
+            "feature": "standing_tables",
+            "environment": "__ENV__"
+          },
+          "annotations": {
+            "summary": "Standing table join server errors",
+            "description": "Unexpected failures on joins attributable to standing codes. Full tables and insufficient balance do not count as errors. Rolling 1h; fires only above 10% with at least 10 requests and persists 10m. Quiet or absent traffic does not alert; query execution errors remain errors. Verify ingestion separately before activation.",
+            "__dashboardUid__": "dc-standing-tables"
+          }
+        },
+        {
+          "uid": "st-materialize-errors",
+          "title": "Standing sitting creation failing",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "queryType": "instant",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "__PROMETHEUS_UID__",
+              "model": {
+                "refId": "A",
+                "expr": "(100 * ((sum(increase(cards_standing_tables_materializations_total{__SERVER_SELECTOR__,outcome=\"error\"}[1h]))) or (0 * ((sum(increase(cards_standing_tables_materializations_total{__SERVER_SELECTOR__}[1h]))) > 0))) / ((sum(increase(cards_standing_tables_materializations_total{__SERVER_SELECTOR__}[1h]))) > 0) > bool 10) * ((sum(increase(cards_standing_tables_materializations_total{__SERVER_SELECTOR__}[1h]))) >= bool 10)",
+                "instant": true,
+                "queryType": "instant",
+                "intervalMs": 60000,
+                "maxDataPoints": 1
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "C"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "10m",
+          "isPaused": true,
+          "labels": {
+            "severity": "warning",
+            "feature": "standing_tables",
+            "environment": "__ENV__"
+          },
+          "annotations": {
+            "summary": "Standing sitting creation failing",
+            "description": "Unexpected room materialization failures, with successful reuse included in traffic. Rolling 1h; fires only above 10% with at least 10 requests and persists 10m. Quiet or absent traffic does not alert; query execution errors remain errors. Verify ingestion separately before activation.",
+            "__dashboardUid__": "dc-standing-tables"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -19,6 +19,8 @@ import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.settleLeaver
+import com.dangerfield.cards.server.plugins.StandingJoinOutcome
+import com.dangerfield.cards.server.plugins.measureStandingJoin
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
@@ -167,65 +169,74 @@ fun Route.roomRoutes(
                 // escrow. Re-joins by an existing member skip the check — they
                 // already sat down. An unknown code falls through to join()'s 404.
                 val standing = standingTables.find(code)
-                if (standing?.archivedAt != null) return@post call.respond(
-                    HttpStatusCode.NotFound, problemEnvelope("standing_table_closed", "This standing table was closed by its host."))
-                var existing = rooms.find(code)
-                if (existing == null && standing != null) {
-                    val balance = wallets.findOrCreate(userId).balance
-                    if (standing.buyIn > balance) return@post call.respond(HttpStatusCode.BadRequest,
-                        problemEnvelope("insufficient_balance", "That table's buy-in of ${standing.buyIn} is more than your balance of $balance chips."))
+                measureStandingJoin(standing != null) {
+                    if (standing?.archivedAt != null) {
+                        call.respond(HttpStatusCode.NotFound,
+                            problemEnvelope("standing_table_closed", "This standing table was closed by its host."))
+                        return@measureStandingJoin StandingJoinOutcome.Archived
+                    }
+                    var existing = rooms.find(code)
+                    if (existing == null && standing != null) {
+                        val balance = wallets.findOrCreate(userId).balance
+                        if (standing.buyIn > balance) {
+                            call.respond(HttpStatusCode.BadRequest,
+                                problemEnvelope("insufficient_balance", "That table's buy-in of ${standing.buyIn} is more than your balance of $balance chips."))
+                            return@measureStandingJoin StandingJoinOutcome.InsufficientBalance
+                        }
+                        val profile = profiles.findOrCreate(userId)
+                        existing = rooms.createWithCode(code, userId, profile.displayName,
+                            RoomSettings.forBuyIn(standing.buyIn, standing.maxSeats),
+                            feltProductId = standing.feltProductId, cardBackProductId = standing.cardBackProductId,
+                            hostAvatarEmoji = profile.avatarEmoji, hostAvatarBackgroundColor = profile.avatarBackgroundColor)
+                    }
+                    if (existing != null && existing.memberFor(userId) == null) {
+                        val balance = wallets.findOrCreate(userId).balance
+                        if (existing.buyIn > balance) {
+                            call.respond(
+                                HttpStatusCode.BadRequest,
+                                problemEnvelope(
+                                    "insufficient_balance",
+                                    "That table's buy-in of ${existing.buyIn} is more than your " +
+                                        "balance of $balance chips.",
+                                ),
+                            )
+                            return@measureStandingJoin StandingJoinOutcome.InsufficientBalance
+                        }
+                    }
                     val profile = profiles.findOrCreate(userId)
-                    existing = rooms.createWithCode(code, userId, profile.displayName,
-                        RoomSettings.forBuyIn(standing.buyIn, standing.maxSeats),
-                        feltProductId = standing.feltProductId, cardBackProductId = standing.cardBackProductId,
-                        hostAvatarEmoji = profile.avatarEmoji, hostAvatarBackgroundColor = profile.avatarBackgroundColor)
-                }
-                if (existing != null && existing.memberFor(userId) == null) {
-                    val balance = wallets.findOrCreate(userId).balance
-                    if (existing.buyIn > balance) {
-                        return@post call.respond(
-                            HttpStatusCode.BadRequest,
-                            problemEnvelope(
-                                "insufficient_balance",
-                                "That table's buy-in of ${existing.buyIn} is more than your " +
-                                    "balance of $balance chips.",
-                            ),
+                    when (
+                        val outcome = rooms.join(
+                            code = code,
+                            userId = userId,
+                            name = profile.displayName,
+                            avatarEmoji = profile.avatarEmoji,
+                            avatarBackgroundColor = profile.avatarBackgroundColor,
                         )
+                    ) {
+                        is JoinResult.Success -> {
+                            if (standing != null) standingTables.upsertRegular(code, userId, clock.now())
+                            call.respond(HttpStatusCode.OK, JoinRoomResponse(room = outcome.room.toDto(clock.now()), alreadyJoined = false))
+                            StandingJoinOutcome.Joined
+                        }
+                        is JoinResult.AlreadyJoined -> {
+                            if (standing != null) standingTables.upsertRegular(code, userId, clock.now())
+                            call.respond(HttpStatusCode.OK, JoinRoomResponse(room = outcome.room.toDto(clock.now()), alreadyJoined = true))
+                            StandingJoinOutcome.AlreadyJoined
+                        }
+                        JoinResult.RoomNotFound -> {
+                            call.respond(HttpStatusCode.NotFound, problemEnvelope("room_not_found", "No room with code $code."))
+                            StandingJoinOutcome.NotFound
+                        }
+                        JoinResult.Full -> {
+                            call.respond(HttpStatusCode.Conflict, problemEnvelope("room_full", "That room is full."))
+                            StandingJoinOutcome.Full
+                        }
+                        is JoinResult.NotJoinable -> {
+                            call.respond(HttpStatusCode.Conflict, problemEnvelope("room_not_joinable",
+                                "That room isn't accepting players right now (status: ${outcome.status})."))
+                            StandingJoinOutcome.NotJoinable
+                        }
                     }
-                }
-                val profile = profiles.findOrCreate(userId)
-                when (
-                    val outcome = rooms.join(
-                        code = code,
-                        userId = userId,
-                        name = profile.displayName,
-                        avatarEmoji = profile.avatarEmoji,
-                        avatarBackgroundColor = profile.avatarBackgroundColor,
-                    )
-                ) {
-                    is JoinResult.Success -> {
-                        if (standing != null) standingTables.upsertRegular(code, userId, clock.now())
-                        call.respond(HttpStatusCode.OK, JoinRoomResponse(room = outcome.room.toDto(clock.now()), alreadyJoined = false))
-                    }
-                    is JoinResult.AlreadyJoined -> {
-                        if (standing != null) standingTables.upsertRegular(code, userId, clock.now())
-                        call.respond(HttpStatusCode.OK, JoinRoomResponse(room = outcome.room.toDto(clock.now()), alreadyJoined = true))
-                    }
-                    JoinResult.RoomNotFound -> call.respond(
-                        HttpStatusCode.NotFound,
-                        problemEnvelope("room_not_found", "No room with code $code."),
-                    )
-                    JoinResult.Full -> call.respond(
-                        HttpStatusCode.Conflict,
-                        problemEnvelope("room_full", "That room is full."),
-                    )
-                    is JoinResult.NotJoinable -> call.respond(
-                        HttpStatusCode.Conflict,
-                        problemEnvelope(
-                            "room_not_joinable",
-                            "That room isn't accepting players right now (status: ${outcome.status}).",
-                        ),
-                    )
                 }
             }
 

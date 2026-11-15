@@ -112,6 +112,7 @@ These events carry no table codes, names or invite URLs.
 
 | Event | Attributes | Fires |
 | --- | --- | --- |
+| `standing_table.operation_completed` | `operation` (mine/get/create/update/archive/leave), `outcome` (success/failure), `reason` (none/network/offline/auth/invalid/conflict/not_found/rate_limited/server/http/decode) | Once per completed repository operation. A post-write mine refresh emits independently; a committed write stays successful if that refresh fails. Decode includes response parsing and domain mapping and also logs the original exception at Error. HTTP 429 is rate_limited, HTTP 5xx is server, and other unmatched HTTP statuses are http; ordinary coroutine cancellation emits no terminal failure. No codes, names or user IDs. |
 | `standing_table.create_started` | `entry` (chooser/feature_intro) | The player chooses to set up a standing table. |
 | `standing_table.created` | `weekday` (ISO 1–7), `hour` (0–23, table-local), `max_seats`, `buy_in` | Creation succeeds. Editing does not emit it. |
 | `standing_table.create_failed` | `reason` (too_many/invalid/network) | A create request fails. |
@@ -170,8 +171,9 @@ All in `PublicSearchingViewModel` unless noted; `wait_ms` counts from the search
 | `matchmaking.bot_offer_accepted` | `trigger` (early_button/timeout), `wait_ms` | "Play bots now" on the radar (`early_button`) or "Play bots" on the 60s offer (`timeout`) |
 | `matchmaking.bot_offer_declined` | `next` (keep_waiting/leave) | Either decline affordance |
 | `matchmaking.abandoned` | `phase` (searching/joined/bot_offer/joining_bots), `wait_ms` | User backed out (cancel / try-again-later) |
-| `room.joined` / `room.left` | — | `RoomRepositoryImpl` join/leave success |
-| `room.join_failed` | `reason` | `RoomRepositoryImpl` join failure |
+| `room.joined` | `is_standing_table` (boolean) | `RoomRepositoryImpl` join success; derived from the returned room summary. |
+| `room.left` | — | `RoomRepositoryImpl` leave success |
+| `room.join_failed` | `reason`, `is_standing_table` (true when known; otherwise omitted) | `RoomRepositoryImpl` join failure. Standing attribution comes from the closed-table outcome or a previously cached standing-room summary. Unknown codes have no standing attribution, so this is not a complete standing-join denominator. |
 
 ## Onboarding funnel
 

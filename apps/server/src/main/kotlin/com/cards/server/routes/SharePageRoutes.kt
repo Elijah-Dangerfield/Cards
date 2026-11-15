@@ -1,9 +1,14 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.server.domain.Room
+import com.dangerfield.cards.server.domain.StandingTable
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.StandingTableRepository
 import com.dangerfield.cards.server.plugins.SHARE_PAGE_LIMIT
+import com.dangerfield.cards.server.plugins.ShareOutcome
+import com.dangerfield.cards.server.plugins.ShareSurface
+import com.dangerfield.cards.server.plugins.measureShareRequest
 import com.dangerfield.cards.server.share.IcsBuilder
 import com.dangerfield.cards.server.share.PreviewImageRenderer
 import com.dangerfield.cards.server.share.SharePageRenderer
@@ -58,31 +63,63 @@ private fun Route.inviteRoutes(
 ) {
     route(path) {
         get {
-            val code = call.validShareCode() ?: return@get call.notFound()
-            val storedTable = tables.find(code)
-            val table = storedTable?.takeIf { it.archivedAt == null }
-            val room = if (storedTable?.archivedAt == null) rooms.findLoaded(code) else null
-            val owner = table?.let { profiles.findById(it.ownerUserId)?.displayName }.orEmpty()
-            call.respondText(
-                SharePageRenderer.render(code, table, room, owner, call.shareUrl(code), clock.now()),
-                ContentType.Text.Html,
-            )
+            measureShareRequest(ShareSurface.Page) {
+                val code = call.validShareCode() ?: return@measureShareRequest call.invalidShareCode()
+                val target = resolveShareTarget(code, tables, rooms)
+                val owner = target.table?.let { profiles.findById(it.ownerUserId)?.displayName }.orEmpty()
+                call.respondText(
+                    SharePageRenderer.render(code, target.table, target.room, owner, call.shareUrl(code), clock.now()),
+                    ContentType.Text.Html,
+                )
+                target.outcome
+            }
         }
         get("/calendar.ics") {
-            val code = call.validShareCode() ?: return@get call.notFound()
-            val table = tables.find(code)?.takeIf { it.archivedAt == null } ?: return@get call.notFound()
-            val filename = table.name.replace(Regex("[^\\p{L}\\p{N} ._-]"), "_") + ".ics"
-            call.response.header(HttpHeaders.ContentDisposition,
-                ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename).toString())
-            call.respondText(IcsBuilder.build(table, call.shareUrl(code), clock.now()), ContentType("text", "calendar"))
+            measureShareRequest(ShareSurface.Calendar) {
+                val code = call.validShareCode() ?: return@measureShareRequest call.invalidShareCode()
+                val target = resolveShareTarget(code, tables, rooms)
+                val table = target.table
+                if (table == null) {
+                    call.notFound()
+                    return@measureShareRequest target.outcome
+                }
+                val filename = table.name.replace(Regex("[^\\p{L}\\p{N} ._-]"), "_") + ".ics"
+                call.response.header(HttpHeaders.ContentDisposition,
+                    ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename).toString())
+                call.respondText(IcsBuilder.build(table, call.shareUrl(code), clock.now()), ContentType("text", "calendar"))
+                target.outcome
+            }
         }
         get("/preview.png") {
-            val code = call.validShareCode() ?: return@get call.notFound()
-            val table = tables.find(code)?.takeIf { it.archivedAt == null }
-            call.response.header(HttpHeaders.CacheControl, "public, max-age=300")
-            call.respondBytes(renderer.render(code, table, clock.now()), ContentType.Image.PNG)
+            measureShareRequest(ShareSurface.Preview) {
+                val code = call.validShareCode() ?: return@measureShareRequest call.invalidShareCode()
+                val target = resolveShareTarget(code, tables, rooms)
+                call.response.header(HttpHeaders.CacheControl, "public, max-age=300")
+                call.respondBytes(renderer.render(code, target.table, clock.now()), ContentType.Image.PNG)
+                target.outcome
+            }
         }
     }
+}
+
+private data class ShareTarget(val table: StandingTable?, val room: Room?, val outcome: ShareOutcome)
+
+private suspend fun resolveShareTarget(code: String, tables: StandingTableRepository, rooms: RoomService): ShareTarget {
+    val storedTable = tables.find(code)
+    val table = storedTable?.takeIf { it.archivedAt == null }
+    val room = if (storedTable?.archivedAt == null) rooms.findLoaded(code) else null
+    val outcome = when {
+        storedTable?.archivedAt != null -> ShareOutcome.Archived
+        table != null -> ShareOutcome.Standing
+        room != null -> ShareOutcome.Ordinary
+        else -> ShareOutcome.Unknown
+    }
+    return ShareTarget(table, room, outcome)
+}
+
+private suspend fun ApplicationCall.invalidShareCode(): ShareOutcome {
+    notFound()
+    return ShareOutcome.Invalid
 }
 
 private fun ApplicationCall.validShareCode(): String? = parameters["code"]?.uppercase()?.takeIf(shareCodePattern::matches)

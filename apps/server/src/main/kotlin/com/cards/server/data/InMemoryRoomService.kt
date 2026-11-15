@@ -4,6 +4,8 @@ import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.di.ServerScope
+import com.dangerfield.cards.server.plugins.ServerMetrics
+import com.dangerfield.cards.server.plugins.StandingMaterializationOutcome
 import com.dangerfield.cards.libraries.gameplay.BuyInTier
 import com.dangerfield.cards.server.domain.AddBotResult
 import com.dangerfield.cards.server.domain.BotSeat
@@ -178,17 +180,25 @@ class InMemoryRoomService(
         code: String, hostUserId: UserId, hostName: String, settings: RoomSettings,
         visibility: RoomVisibility, feltProductId: String?, cardBackProductId: String?,
         hostAvatarEmoji: String, hostAvatarBackgroundColor: String?,
-    ): Room = mutex.withLock {
-        (rooms[code] ?: hydrateLocked(code))?.let { return@withLock it.room }
-        val now = clock.now()
-        val host = RoomMember(hostUserId, hostName, 0, now, false, now,
-            sanitizeMemberAvatar(hostAvatarEmoji), hostAvatarBackgroundColor)
-        val room = Room(code, hostUserId, now, settings.maxSeats, RoomStatus.Lobby, listOf(host),
-            settings.startingStack, visibility, feltProductId, cardBackProductId, standingTables.find(code))
-        store.save(room)
-        rooms[code] = RoomState(room)
-        room
-    }
+    ): Room = Catching {
+        mutex.withLock {
+            (rooms[code] ?: hydrateLocked(code))?.let {
+                ServerMetrics.recordStandingMaterialization(StandingMaterializationOutcome.Reused)
+                return@withLock it.room
+            }
+            val now = clock.now()
+            val host = RoomMember(hostUserId, hostName, 0, now, false, now,
+                sanitizeMemberAvatar(hostAvatarEmoji), hostAvatarBackgroundColor)
+            val room = Room(code, hostUserId, now, settings.maxSeats, RoomStatus.Lobby, listOf(host),
+                settings.startingStack, visibility, feltProductId, cardBackProductId, standingTables.find(code))
+            store.save(room)
+            rooms[code] = RoomState(room)
+            ServerMetrics.recordStandingMaterialization(StandingMaterializationOutcome.Created)
+            room
+        }
+    }.onFailure {
+        ServerMetrics.recordStandingMaterialization(StandingMaterializationOutcome.Error)
+    }.getOrThrow()
 
     override suspend fun findLoaded(code: String): Room? = mutex.withLock { rooms[code]?.room }
 

@@ -1,0 +1,1015 @@
+{
+  "uid": "dc-standing-tables",
+  "title": "Standing Tables Health",
+  "description": "Prepared offline. Fixed environment __ENV__. Rolling 1h windows for client and server. No events while flags are off is expected; missing traffic does not establish health. Client events can be sampled, delayed or duplicated; server requests include bots. Metric names and resource selectors require ingestion verification before activation.",
+  "tags": [
+    "downcard",
+    "standing-tables",
+    "prepared-offline"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Client operations by outcome",
+      "description": "Per repository call, including background mine refreshes after writes. Separate write success from refresh failure. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "loki",
+        "uid": "__LOKI_UID__"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (operation,outcome,reason) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" [1h]))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{operation}} {{outcome}} {{reason}} {{surface}} {{result}} {{platform}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Create outcomes",
+      "description": "Terminal create repository calls. UI create_started counts entry intent and is not a request denominator. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "loki",
+        "uid": "__LOKI_UID__"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome,reason) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" | operation=\"create\" [1h]))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{operation}} {{outcome}} {{reason}} {{surface}} {{result}} {{platform}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Client operation failure %",
+      "description": "All repository failures, including validation, auth and network. Zero means no counted failures; inspect traffic alongside it. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "loki",
+        "uid": "__LOKI_UID__"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" | outcome=\"failure\" [1h]))) or (0 * ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" [1h]))) > 0))) / ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" [1h]))) > 0)",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{operation}} {{outcome}} {{reason}} {{surface}} {{result}} {{platform}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Client decode failures",
+      "description": "Response decoding or domain mapping failed. Includes mine, get, create and update. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "loki",
+        "uid": "__LOKI_UID__"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (operation) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" | reason=\"decode\" [1h]))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{operation}} {{outcome}} {{reason}} {{surface}} {{result}} {{platform}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Client operation volume",
+      "description": "Number of terminal repository operations over one hour. No traffic is not proof of health. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "loki",
+        "uid": "__LOKI_UID__"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" [1h])) or vector(0))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{operation}} {{outcome}} {{reason}} {{surface}} {{result}} {{platform}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Create entry intent",
+      "description": "Chooser versus feature intro. Compare to terminal creates as activity, not a cohort conversion rate. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "loki",
+        "uid": "__LOKI_UID__"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (entry) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.create_started\" [1h]))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{operation}} {{outcome}} {{reason}} {{surface}} {{result}} {{platform}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Invite share actions",
+      "description": "System share action handed off, not confirmed delivery. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "loki",
+        "uid": "__LOKI_UID__"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (surface) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.invite_shared\" [1h]))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{operation}} {{outcome}} {{reason}} {{surface}} {{result}} {{platform}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Calendar outcomes",
+      "description": "iOS added confirms save; Android opened only confirms editor launch. Unavailable falls back to .ics; cancelled is not a failure. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "loki",
+        "uid": "__LOKI_UID__"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (platform,result,surface) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.calendar_added\" [1h]))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{operation}} {{outcome}} {{reason}} {{surface}} {{result}} {{platform}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Client standing join successes",
+      "description": "Confirmed standing room summary on a successful join. Not a link-attributed funnel. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "loki",
+        "uid": "__LOKI_UID__"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"room.joined\" | is_standing_table=\"true\" [1h])) or vector(0))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{operation}} {{outcome}} {{reason}} {{surface}} {{result}} {{platform}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Known standing join failures",
+      "description": "Only failures attributable to a known standing code; unknown-code failures omit this attribute, so this is not a complete denominator. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "loki",
+        "uid": "__LOKI_UID__"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (reason) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"room.join_failed\" | is_standing_table=\"true\" [1h]))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{operation}} {{outcome}} {{reason}} {{surface}} {{result}} {{platform}}"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Share requests by semantic outcome",
+      "description": "Includes HTTP 200 unknown/archived responses. page, calendar and preview are separate surfaces; bots and repeat requests count. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "__PROMETHEUS_UID__"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (surface,outcome) (increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__}[1h]))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{surface}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Standing invite page responses",
+      "description": "Page responses only, excluding preview crawlers and calendar requests. Not distinct people. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "__PROMETHEUS_UID__"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__,surface=\"page\",outcome=\"standing\"}[1h])) or vector(0))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{surface}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Unknown or archived page responses",
+      "description": "Semantic unavailable responses even when HTTP status is 200. Expected expired links do not page the owner. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "__PROMETHEUS_UID__"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__,surface=\"page\",outcome=~\"unknown|archived\"}[1h]))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{surface}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Standing joins by outcome",
+      "description": "Known standing codes only. Lookup errors before attribution remain in generic HTTP telemetry. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "__PROMETHEUS_UID__"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (increase(cards_standing_tables_join_requests_total{__SERVER_SELECTOR__}[1h]))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{surface}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Standing join request success %",
+      "description": "Successful or already-joined requests / all attributable standing join requests. Request conversion, not share-to-player attribution. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "__PROMETHEUS_UID__"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * ((sum(increase(cards_standing_tables_join_requests_total{__SERVER_SELECTOR__,outcome=~\"joined|already_joined\"}[1h]))) or (0 * ((sum(increase(cards_standing_tables_join_requests_total{__SERVER_SELECTOR__}[1h]))) > 0))) / ((sum(increase(cards_standing_tables_join_requests_total{__SERVER_SELECTOR__}[1h]))) > 0)",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{surface}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Standing sitting materializations",
+      "description": "created, reused and error. Existing live sittings can be reused without a new room. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "__PROMETHEUS_UID__"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (increase(cards_standing_tables_materializations_total{__SERVER_SELECTOR__}[1h]))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{surface}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Share request error %",
+      "description": "Unexpected server errors / all share surface requests. Unknown/archived/invalid are semantic outcomes, not server errors. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "__PROMETHEUS_UID__"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * ((sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__,outcome=\"error\"}[1h]))) or (0 * ((sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__}[1h]))) > 0))) / ((sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__}[1h]))) > 0)",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{surface}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "Share request volume",
+      "description": "All share surfaces over one hour. Inspect before interpreting error percentages. Rolling 1h windows; counts overlap between samples.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "__PROMETHEUS_UID__"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 64,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__}[1h])) or vector(0))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "{{surface}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "Sessions taking a standing-table action",
+      "description": "Unique sessions with create, open, share or calendar intent over a rolling hour. Aggregate count only; no identifiers shown. Not unique people, exposure or confirmed calendar saves.",
+      "datasource": {
+        "type": "loki",
+        "uid": "__LOKI_UID__"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 72,
+        "w": 24,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(sum by (session_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=~\"standing_table.created|standing_table.opened|standing_table.invite_shared|standing_table.calendar_added\" | session_id!=\"\" [1h])))",
+          "queryType": "range",
+          "range": true,
+          "legendFormat": "Active sessions"
+        }
+      ]
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": []
+  }
+}
