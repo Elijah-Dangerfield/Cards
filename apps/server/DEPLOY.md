@@ -38,12 +38,14 @@ merge **auto-queues** a prod deploy that pauses on the `production` GitHub
 Environment for a one-click approval (**Actions → the run → "Review
 deployments"**). Approve it once dev looks good. The `workflow_dispatch` path is
 still there as a break-glass / redeploy button (type `prod` to confirm), as is
-`fly deploy --config apps/server/fly.prod.toml` locally. The server is
+`fly deploy --config apps/server/fly.prod.toml --ha=false` locally. The server is
 deliberately **decoupled from the mobile app release** — see
 [`docs/practices/release.md`](../../docs/practices/release.md) →
 "Two release tracks". The schema needs no manual work — Flyway runs every
 migration on first boot and `V5__products.sql` seeds the catalog, on either
 database.
+
+Use `--ha=false` for image rollbacks too. Keep one healthy writer; an automatically started spare cannot serve while the primary holds the database lock.
 
 ### Standing up prod (one-time)
 ```
@@ -54,7 +56,7 @@ fly secrets set \
   SUPABASE_SERVICE_ROLE_KEY='<prod service_role key>' \
   ADMIN_API_TOKEN="$(openssl rand -hex 32)" \
   -a cards-server-prod
-fly deploy --config apps/server/fly.prod.toml
+fly deploy --config apps/server/fly.prod.toml --ha=false
 fly tokens create deploy -a cards-server-prod --expiry 8760h   # → GH secret FLY_API_TOKEN_PROD
 ```
 Set the prod project's DB password to match dev (so only the project ref
@@ -116,7 +118,7 @@ differs), set `CARDS_ADMIN_API_TOKEN_PROD` in GitHub to the prod
 
 6. **First deploy**:
    ```
-   fly deploy --config apps/server/fly.toml --remote-only
+   fly deploy --config apps/server/fly.toml --remote-only --ha=false
    ```
    `--remote-only` uses Fly's builders instead of local Docker (no Docker desktop required). Takes ~3-5 minutes for the first build; subsequent deploys reuse cached layers.
 

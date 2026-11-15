@@ -1,8 +1,8 @@
 # Observability: which dashboard answers which question
 
 The Grafana suite (built 2026-07-11) is organized so the owner can glance for 30 seconds and know
-if anything needs attention. Three folders, seven dashboards, one rule: **if Pulse row 1 is all
-green, close the tab.**
+if anything needs attention. Across Product, Business and Engineering, the rule is: **if Pulse
+row 1 is all green, close the tab.**
 
 | Folder | Dashboard (uid) | Headline question |
 |---|---|---|
@@ -17,6 +17,7 @@ green, close the tab.**
 | Downcard — Engineering | Game Server Pipeline (`cards-gameplay`) | Turn-processing internals from Tempo traces |
 | Downcard — Engineering | Performance (`dc-perf`) | Is the app smooth, how fast does it start, and which screen is at fault? Jank rate and worst frame per screen from `app.jank` (JankStats); cold-start p50/p90 from `app.startup`, measured from OS process creation; abnormal exits as the outcome both predict. **Android only** — iOS has neither a frame-timing API nor a readable process-start clock, and reports nothing here. **Empty until a build carrying them reaches prod**; the "Screens reporting" and "Cold starts recorded" stats are the tell (0 = no such build yet, not a fast, smooth app) |
 | Downcard — Engineering | Billing Health (`dc-billing-health`) | Chip-purchase recovery pipeline: stuck purchases with age, mismatch rate, grant-on-replay, refunds, wedged escalations, retry distribution, sliceable by reason |
+| Downcard — Engineering | [Standing Tables Health](https://cards.grafana.net/d/dc-standing-tables) (`dc-standing-tables`) | Are standing-table operations and invites healthy, and how many devices create, join and share each week? Device proxies, not player or retention cohorts. |
 
 ## Conventions
 
@@ -55,11 +56,13 @@ green, close the tab.**
 
 ## Alerts (folder Downcard — Engineering)
 
-Eight rules, labelled `severity: critical|warning`. A1 ledger drift ≠ 0 (hourly, critical) ·
+Core rules are labelled `severity: critical|warning`. A1 ledger drift ≠ 0 (hourly, critical) ·
 A2 Fly prod down (5m, critical) · A3 Supabase down (10m, critical) · A4 ≥3 installs reporting
 `net.backend_unreachable` in 15m (critical) · A5 purchase success rate low (critical) · A6 any
 OOM kill (critical) · A7 server silent 60m (warning, **live since launch 2026-07-24**) ·
 A8 store dropped chip-pack SKUs in prod (hourly, warning). Root policy repeats at most every 24h.
+
+Standing tables adds five warning rules per environment for client operations, creation, share handlers, joins and materialization. They require minimum traffic, treat quiet periods as OK and preserve query errors. [Templates, thresholds and coverage limits](../../config/observability/standing-tables/README.md) live with the dashboard source; rendered rules start paused and activation is separate.
 
 **A8 covers the blind spot A5 structurally cannot see (ENG-43, CARDS-8V).** A5 divides purchase
 completions by attempts, so a store that recognizes none of our SKUs produces zero visible packs,

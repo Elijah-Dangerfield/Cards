@@ -1,6 +1,6 @@
 # Standing tables health
 
-Reusable dashboard and paused-rule templates. The live [Standing Tables Health dashboard](https://cards.grafana.net/d/dc-standing-tables) was deployed separately; exact writes, bindings and rollback scope are recorded in the rollout ledger. The original 23 panel/rule expressions passed live dev-first, then prod syntax checks. New counter ingestion still awaits the server deploy and controlled traffic. Feature flags remain off. This bundle adds 23 dashboard panels and five warning rules per environment without changing existing dashboards, alerts or notification routing.
+Reusable templates for the [Standing Tables Health dashboard](https://cards.grafana.net/d/dc-standing-tables): 23 panels and five warning rules per environment. Rendering writes local JSON only. Generated rules are paused; live activation, evidence and rollback history belong in the rollout ledger, separate from these templates.
 
 ## Render without contacting Grafana
 
@@ -28,13 +28,13 @@ Calendar outcomes stay split by platform and result: iOS `added` confirms a save
 
 Server metrics use monotonic OTel counters from [`ServerMetrics`](../../../apps/server/src/main/kotlin/com/cards/server/plugins/Metrics.kt), with bounded [outcome enums](../../../apps/server/src/main/kotlin/com/cards/server/plugins/StandingTableMetrics.kt):
 
-| OTel instrument | Expected Prometheus name | Labels |
+| OTel instrument | Prometheus name | Labels |
 | --- | --- | --- |
 | `cards.standing_tables.share.requests` | `cards_standing_tables_share_requests_total` | `surface`: page/calendar/preview; `outcome`: standing/ordinary/unknown/archived/invalid/error |
 | `cards.standing_tables.join.requests` | `cards_standing_tables_join_requests_total` | `outcome`: joined/already_joined/archived/insufficient_balance/full/not_joinable/not_found/error |
 | `cards.standing_tables.materializations` | `cards_standing_tables_materializations_total` | `outcome`: created/reused/error |
 
-The expected names were checked offline with `prometheus/otlptranslator` v1.0.0, counter suffixes enabled, using the source units `{request}` and `{attempt}`. New counter ingestion names still need verification after deployment; resource-label promotion was verified against existing server HTTP metrics. Share counters distinguish unknown and archived pages even when the handler returns HTTP 200. Preview crawlers, bots and repeated requests count; these are not distinct users. Rate-limit rejections before handlers, static assets, ordinary coroutine cancellation and lookup errors before standing-code attribution remain outside these counters. [`Tracing.kt`](../../../apps/server/src/main/kotlin/com/cards/server/plugins/Tracing.kt) and [`Observability.kt`](../../../apps/server/src/main/kotlin/com/cards/server/plugins/Observability.kt) install generic HTTP tracing and request logs. This bundle does not assert an exported generic HTTP metric name or add a guessed status-rate query; inspect those logs/traces for pre-attribution failures until that schema is verified. Timeout cancellation is counted as an error by the shared `Catching` policy.
+All three names and their bounded labels were confirmed in live dev ingestion. A controlled repeat verified counter deltas for joins, materializations and share outcomes; production unknown-code probes verified page, calendar and preview counters. Resource-label promotion was also confirmed on server HTTP metrics. Share counters distinguish unknown and archived pages even when the handler returns HTTP 200. Preview crawlers, bots and repeated requests count; these are not distinct users. Rate-limit rejections before handlers, static assets, ordinary coroutine cancellation and lookup errors before standing-code attribution remain outside these counters. [`Tracing.kt`](../../../apps/server/src/main/kotlin/com/cards/server/plugins/Tracing.kt) and [`Observability.kt`](../../../apps/server/src/main/kotlin/com/cards/server/plugins/Observability.kt) install generic HTTP tracing and request logs. Inspect those logs and traces for failures that happen before standing-code attribution; the feature counters do not cover them. Timeout cancellation is counted as an error by the shared `Catching` policy.
 
 ## Rules and readiness
 

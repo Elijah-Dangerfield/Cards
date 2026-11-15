@@ -1558,3 +1558,11 @@ The compensating refund is kept as a backstop rather than deleted. It should no 
 **Calendar policy:** weekly recurrence follows the table's IANA zone and local weekday and hour. Native launchers skip a nonexistent spring-forward occurrence rather than move every later occurrence to the shifted hour. Web `.ics` exports retain the nominal wall time in their recurrence. Android reports opening the calendar editor, because its intent API cannot confirm a save; iOS reports saved or cancelled. A missing native handler falls back to the `.ics` URL.
 
 **Discovery:** a reusable Home notification introduces the feature once to eligible players after they have played a hand. It shares the existing notification queue so welcome and progression celebrations retain priority. Seen intro IDs live in the persisted `AppData` cache, once per device across account switches; a new notification system or a one-off persistent boolean would duplicate existing machinery. Eligibility is flag enabled, at least one hand played and the intro unseen. The plan's "never on the first session" summary means the fresh zero-hand Home visit; it does not exclude the rest of a session once that first hand is complete.
+
+## 2026-11-15: Deploy one writer without an HA spare
+
+**Decision:** both Fly server deployment workflows pass `--ha=false`. Keep exactly one healthy machine in each environment and retain the existing rolling strategy and single-writer database guard.
+
+**Why:** Fly's deploy command creates spare machines by default. A spare can auto-start while the primary still holds the writer lock, then fail boot and restart repeatedly. The production spare did this after the standing-tables deployment, producing `CARDS-9Q` while the primary continued serving. The stopped, unmounted spares were removed after verifying the healthy writers; no primary was stopped.
+
+**Alternatives rejected:** keeping a stopped spare, because auto-start makes it attempt to serve and repeatedly fail the guard; allowing two writers or using blue-green deployment, because live table state is in memory and concurrent writers can split a game. Disabling HA spares fixes the deployment shape without weakening that safety check. [Fly deploy reference](https://docs.fly.io/flyctl/cmd/fly_deploy) documents the spare-creation default.

@@ -12,7 +12,7 @@ This template ships to the App Store and Play Store with no human clicks after o
 
 There are **two independent release tracks**, and most of this doc is about the first one:
 
-1. **The mobile app** — a *versioned artifact* shipped to the App Store / Play Store via release-please + [release.yml](../.github/workflows/release.yml). Store review, staged rollout, slow rollback. This is the "Cutting a release" flow below.
+1. **The mobile app** is a versioned artifact shipped to the App Store / Play Store via release-please + [release.yml](../../.github/workflows/release.yml). Store review, platform-specific rollout, slow rollback. This is the "Cutting a release" flow below.
 2. **The server** (`cards-server-dev` / `cards-server-prod` on Fly) — a *continuously-deployed service*, **not** in release-please and **not** tied to the app version. Fly deploys are instant and reversible.
 
 **Why decoupled:** the server must serve every app version in the wild (that's what version-targeted config is for), and the two have opposite cadence/rollback shapes. Coupling them would block server hotfixes on store review, or block app releases on server deploys. **Coordinate a breaking client⇄server change with config flags, not a lockstep deploy** — ship the backward-compatible server first, release the app, then flip the flag once enough clients have updated.
@@ -35,9 +35,11 @@ So a server change lands in prod when a human approves the auto-queued deploy �
 1. There is always (well — whenever there are new `fix:`/`feat:`/`perf:` commits on main) an open PR titled **`chore(main): release vX.Y.Z`**, opened automatically by the release-please bot. It contains the version bump + changelog.
 2. **Merge that PR.** release-please creates the `vX.Y.Z` tag + GitHub Release.
 3. release-please.yml then dispatches [release.yml](../.github/workflows/release.yml) for that tag (it can't rely on the tag-push trigger — GitHub's default `GITHUB_TOKEN` deliberately doesn't cascade workflow triggers). release.yml:
-   - Android → Play Console production track, 10% staged rollout
+   - Android → Play Console production track, 100% rollout (`completed`, no user fraction)
    - iOS → TestFlight external group "main" → submitted to App Store review with Apple's built-in phased release
 4. Apple review (1–3 days) and Play review (few hours) approve. Builds roll out automatically.
+
+Play publishes to 100% because staged releases previously left most players on old builds without an active promotion process. Monitoring and manual halts remain the safety net. This matches the policy in [release.yml](../../.github/workflows/release.yml).
 
 ### Read the top of the release PR before you merge
 
@@ -175,7 +177,7 @@ Each run:
 
 ### Post-release monitoring
 
-There's no automated rollout guard. Apple's built-in phased release (7-day gradual rollout from 1% → 100%) and Play's staged rollout (10% initial) give you a safety window. For detection, configure Sentry's native alerting (Sentry → Alerts → create a rule on *crash-free sessions* below 99% for the relevant project) and halt manually in App Store Connect / Play Console when needed.
+There's no automated rollout guard. Apple uses its built-in phased release; Play publishes to 100%. For detection, configure Sentry's native alerting (Sentry → Alerts → create a rule on *crash-free sessions* below 99% for the relevant project) and halt manually in App Store Connect or Play Console when needed.
 
 ---
 
@@ -198,13 +200,13 @@ main ─── push ──► release-please (bot) maintains open "release vX.Y.
                         │ release-please.yml dispatches release.yml
                         │ (GITHUB_TOKEN doesn't cascade tag triggers)
                         ▼
-                 release.yml ── Android AAB ──► Play production (10% staged)
+                 release.yml ── Android AAB ──► Play production (100%)
                              ── iOS IPA ─────► TestFlight "main" external
                              ── App Store ──► submit + phased rollout
                              ── Sentry ─────► create release + upload mappings
 
-Post-release: Sentry's own alerting + App Store / Play's native phased
-rollouts. Halt manually if crash-free rate tanks.
+Post-release: Sentry's own alerting, Apple's phased release and Play's
+manual halt. Halt if crash-free rate tanks.
 ```
 
 ## Workflows at a glance
@@ -330,7 +332,7 @@ Routes are **extensionless**: `/privacy`, `/terms`, `/support` — there is no `
 | `release.yml` Android job: keystore missing | One of the `ANDROID_*` secrets is empty. |
 | `release.yml` Android job: Play upload skipped with warning | `PLAY_SERVICE_ACCOUNT_JSON` is empty or malformed. |
 | Apple rejects submission | Usually metadata or privacy-related. Fix in App Store Connect — the binary is already uploaded, resubmit from ASC, no rebuild. |
-| Crash-free rate spikes after release | Halt phased rollout manually: App Store Connect → your app → Phased Release → **Pause Rollout**. Play Console → Production → **Halt rollout**. Ship a fix via normal flow; next release supersedes. |
+| Crashes rise after release | Halt manually: App Store Connect → your app → Phased Release → **Pause Rollout**. Play Console → Production → **Halt rollout**. Ship a fix via normal flow; next release supersedes. |
 | Tag created but release.yml didn't fire | release-please.yml failed at the dispatch step (check its run). Manual remediation: Actions → Release → Run workflow → enter the tag. If a human pushed the tag (not release-please), the push trigger would have fired it — if that's not the case, the `v*` prefix is probably wrong. |
 | AI triage PR failed CI | Check the PR — if the fix is wrong, close it. `ai-autofix` PRs don't auto-merge without green CI. |
 

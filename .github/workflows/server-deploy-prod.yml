@@ -168,6 +168,7 @@ jobs:
           flyctl deploy \
             --config apps/server/fly.prod.toml \
             --local-only \
+            --ha=false \
             --build-arg COMMIT_SHA=${{ github.sha }} \
             --build-arg COMMIT_BRANCH=${{ github.ref_name }}
         env:
