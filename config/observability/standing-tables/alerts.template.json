@@ -78,7 +78,8 @@
           "annotations": {
             "summary": "Standing table client operations failing",
             "description": "Unexpected transport, server or decode failures. Invalid input, conflict, auth and expected offline results excluded. Rolling 1h; fires only above 20% with at least 20 requests and persists 10m. Quiet or absent traffic does not alert; query execution errors remain errors. Verify ingestion separately before activation.",
-            "__dashboardUid__": "dc-standing-tables"
+            "__dashboardUid__": "dc-standing-tables",
+            "__panelId__": "3"
           }
         },
         {
@@ -152,7 +153,8 @@
           "annotations": {
             "summary": "Standing table creation failing",
             "description": "Unexpected create failures, not chooser abandonment or business refusals. Rolling 1h; fires only above 20% with at least 10 requests and persists 10m. Quiet or absent traffic does not alert; query execution errors remain errors. Verify ingestion separately before activation.",
-            "__dashboardUid__": "dc-standing-tables"
+            "__dashboardUid__": "dc-standing-tables",
+            "__panelId__": "2"
           }
         },
         {
@@ -226,7 +228,8 @@
           "annotations": {
             "summary": "Standing invite server errors",
             "description": "Unexpected share page, calendar or image errors. Unknown and archived links do not count as errors. Rolling 1h; fires only above 10% with at least 20 requests and persists 10m. Quiet or absent traffic does not alert; query execution errors remain errors. Verify ingestion separately before activation.",
-            "__dashboardUid__": "dc-standing-tables"
+            "__dashboardUid__": "dc-standing-tables",
+            "__panelId__": "17"
           }
         },
         {
@@ -300,7 +303,8 @@
           "annotations": {
             "summary": "Standing table join server errors",
             "description": "Unexpected failures on joins attributable to standing codes. Full tables and insufficient balance do not count as errors. Rolling 1h; fires only above 10% with at least 10 requests and persists 10m. Quiet or absent traffic does not alert; query execution errors remain errors. Verify ingestion separately before activation.",
-            "__dashboardUid__": "dc-standing-tables"
+            "__dashboardUid__": "dc-standing-tables",
+            "__panelId__": "14"
           }
         },
         {
@@ -374,7 +378,8 @@
           "annotations": {
             "summary": "Standing sitting creation failing",
             "description": "Unexpected room materialization failures, with successful reuse included in traffic. Rolling 1h; fires only above 10% with at least 10 requests and persists 10m. Quiet or absent traffic does not alert; query execution errors remain errors. Verify ingestion separately before activation.",
-            "__dashboardUid__": "dc-standing-tables"
+            "__dashboardUid__": "dc-standing-tables",
+            "__panelId__": "16"
           }
         }
       ]
