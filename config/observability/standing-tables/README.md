@@ -1,6 +1,6 @@
 # Standing tables health
 
-Reusable dashboard and paused-rule templates. The live [Standing Tables Health dashboard](https://cards.grafana.net/d/dc-standing-tables) was deployed separately; exact writes, bindings and rollback scope are recorded in the rollout ledger. The original 23 panel/rule expressions passed live dev-first, then prod syntax checks. New counter ingestion still awaits the server deploy and controlled traffic. Feature flags remain off. This bundle adds 19 dashboard panels and five warning rules per environment without changing existing dashboards, alerts or notification routing.
+Reusable dashboard and paused-rule templates. The live [Standing Tables Health dashboard](https://cards.grafana.net/d/dc-standing-tables) was deployed separately; exact writes, bindings and rollback scope are recorded in the rollout ledger. The original 23 panel/rule expressions passed live dev-first, then prod syntax checks. New counter ingestion still awaits the server deploy and controlled traffic. Feature flags remain off. This bundle adds 23 dashboard panels and five warning rules per environment without changing existing dashboards, alerts or notification routing.
 
 ## Render without contacting Grafana
 
@@ -21,6 +21,8 @@ Client LogQL uses stream labels `service_name="cards-client"` and `deployment_en
 `standing_table.operation_completed` is the repository denominator. It records mine/get/create/update/archive/leave separately, including decode failures and mine refreshes after successful writes. Creation entry intent is a separate count, not a request or a cohort. Client events can be delayed, sampled or duplicated by the existing telemetry pipeline.
 
 Client `room.joined` with `is_standing_table=true` confirms a returned standing-room summary. Failure attribution is partial: unknown codes omit that attribute. Server join success percentage uses all attributable standing join requests, including already-joined successes. It measures request conversion, not whether an invite recipient became a player. There is no identifier linking web page requests to app joins.
+
+Four weekly panels use existing `install_id` metadata: unique creator devices, successful standing-join devices, creator devices that also shared, and devices taking a standing-table action. All use rolling seven-day windows and return aggregate counts or percentages, never identifiers. The creator/share percentage intersects the two device sets and requires a positive creator denominator. A device can create one table and share another; this is not per-table conversion. Devices are not people or accounts, joins do not prove hands played, and session-based telemetry sampling can miss activity. These panels do not establish D7 return cohorts or web-to-app attribution.
 
 Calendar outcomes stay split by platform and result: iOS `added` confirms a save, Android `opened` only confirms that its editor launched. `cancelled` and `unavailable` are not failed saves; unavailable opens the `.ics` fallback.
 

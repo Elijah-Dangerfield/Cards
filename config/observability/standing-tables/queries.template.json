@@ -150,5 +150,37 @@
     "expr": "count(sum by (session_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=~\"standing_table.created|standing_table.opened|standing_table.invite_shared|standing_table.calendar_added\" | session_id!=\"\" [1h])))",
     "description": "Unique sessions with create, open, share or calendar intent over a rolling hour. Aggregate count only; no identifiers shown. Not unique people, exposure or confirmed calendar saves.",
     "unit": "short"
+  },
+  {
+    "id": "creator_devices_7d",
+    "title": "Creator devices, 7 days",
+    "source": "loki",
+    "expr": "count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.created\" | install_id!=\"\" [7d])) > 0))",
+    "description": "Devices emitting a successful standing-table creation in a rolling 7 days. install_id proxy, not accounts or people. Session sampling and delayed events can undercount.",
+    "unit": "short"
+  },
+  {
+    "id": "standing_join_devices_7d",
+    "title": "Standing join devices, 7 days",
+    "source": "loki",
+    "expr": "count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"room.joined\" | is_standing_table=\"true\" | install_id!=\"\" [7d])) > 0))",
+    "description": "Devices with a successful standing room join in a rolling 7 days. Joining does not prove a hand was played. Not weekly player adoption or unique accounts.",
+    "unit": "short"
+  },
+  {
+    "id": "creator_share_devices_7d",
+    "title": "Creator devices that also shared, 7 days",
+    "source": "loki",
+    "expr": "100 * (count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.created\" | install_id!=\"\" [7d])) > 0) and on (install_id) (sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.invite_shared\" | install_id!=\"\" [7d])) > 0)) or (0 * (count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.created\" | install_id!=\"\" [7d])) > 0)) > 0))) / (count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.created\" | install_id!=\"\" [7d])) > 0)) > 0)",
+    "description": "Percent of creator devices also emitting a standing invite share within the same rolling 7 days. Device-set intersection, not per-table conversion, delivered invites or account cohorts. Positive creator denominator required; no creators returns NoData.",
+    "unit": "percent"
+  },
+  {
+    "id": "action_devices_7d",
+    "title": "Devices taking a standing action, 7 days",
+    "source": "loki",
+    "expr": "count(sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=~\"standing_table.created|standing_table.opened|standing_table.invite_shared|standing_table.calendar_added\" | install_id!=\"\" [7d])) > 0)",
+    "description": "Devices with create, open, share or calendar intent over a rolling 7 days. install_id proxy, not people, confirmed calendar saves or D7 retention. Session sampling can miss actions.",
+    "unit": "short"
   }
 ]
