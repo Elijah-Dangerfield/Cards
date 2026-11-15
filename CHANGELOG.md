@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.9.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.8.0...v0.9.0) (2026-11-15)
+
+
+### Features
+
+* **calendar:** open native weekly event editors ([2e5e7db](https://github.com/Elijah-Dangerfield/Cards/commit/2e5e7dbb6319ce91ca5402b01d30d916aae190b1))
+* **home:** introduce standing tables once per device ([5e3ae7f](https://github.com/Elijah-Dangerfield/Cards/commit/5e3ae7f6d70eb0caa3e10147b772bff82e233099))
+* **lobby:** add standing-table screens behind the dark flag ([fed1231](https://github.com/Elijah-Dangerfield/Cards/commit/fed1231bf08b6c3db74b43ff4cc4590a31676ab0))
+* **observability:** chart weekly standing-table adoption ([f1f6094](https://github.com/Elijah-Dangerfield/Cards/commit/f1f6094efc47edc1011317e5e047a35fd8fcb557))
+* **rooms:** add dark standing-table data and invite config ([10fdebd](https://github.com/Elijah-Dangerfield/Cards/commit/10fdebdb5e04c799970d5bf0a9bfb4d4c823267e))
+* **server:** add durable standing tables and legacy joins ([255f5bb](https://github.com/Elijah-Dangerfield/Cards/commit/255f5bba705b3fe3de8094f0d07cc686eaaa4eba))
+* **telemetry:** monitor standing-table adoption and failures ([df6cea8](https://github.com/Elijah-Dangerfield/Cards/commit/df6cea8d683bad3c35c106deb5d346411cad39fe))
+* **telemetry:** record deduplicated navigation route events ([cca4103](https://github.com/Elijah-Dangerfield/Cards/commit/cca4103183fa19ba106b7ca3e803e5966f688871))
+
+
+### Bug Fixes
+
+* **home:** log feature intros when the sheet is visible ([4608dc2](https://github.com/Elijah-Dangerfield/Cards/commit/4608dc25beb35fcba8b832584b9ee1d4e4a03989))
+* **invites:** repair static invite previews and validate codes ([c1ba858](https://github.com/Elijah-Dangerfield/Cards/commit/c1ba858f1a336a220ee0292e7f30e443a941a00a))
+* **invites:** serve table previews and weekly calendar links ([7d17a25](https://github.com/Elijah-Dangerfield/Cards/commit/7d17a25720da5b1a3d63161d2d0432af5f01c5ea))
+* **lobby:** retain scope for standing-table actions ([67e625f](https://github.com/Elijah-Dangerfield/Cards/commit/67e625f500f67918547fb7b1bd4ea05d89a5e130))
+* **observability:** pair alert dashboard links with panels ([02abfc0](https://github.com/Elijah-Dangerfield/Cards/commit/02abfc0454344425f9cc17e176d7c9ad62d4f55d))
+* **rooms:** reject stale standing-table list responses ([affc2f8](https://github.com/Elijah-Dangerfield/Cards/commit/affc2f8149839ad569d1beb7afc5afbc596de991))
+
 ## [0.8.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.7.0...v0.8.0) (2026-11-13)
 
 
