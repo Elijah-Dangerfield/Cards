@@ -162,34 +162,34 @@ fun Route.roomRoutes(
                 val code = call.parameters["code"]?.uppercase()
                     ?: return@post call.respond(HttpStatusCode.BadRequest)
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
-                // Mirror the matchmaking affordability fence: you can't join a
-                // table whose buy-in is more than your wallet holds. The private
-                // join-by-code path had no such gate, so a tester joined a room
-                // they couldn't sit at and was silently demoted to spectator by
-                // escrow. Re-joins by an existing member skip the check — they
-                // already sat down. An unknown code falls through to join()'s 404.
                 val standing = standingTables.find(code)
                 measureStandingJoin(standing != null) {
-                    if (standing?.archivedAt != null) {
+                    val open = standing?.takeIf { it.archivedAt == null }
+                    if (open != null) rooms.reclaimIfAbandoned(code, DEFAULT_REAPER_GRACE)
+                    var existing = rooms.find(code)
+                    // A closed table still lets the people already sitting at it back in.
+                    if (standing != null && open == null && existing?.memberFor(userId) == null) {
                         call.respond(HttpStatusCode.NotFound,
                             problemEnvelope("standing_table_closed", "This standing table was closed by its host."))
                         return@measureStandingJoin StandingJoinOutcome.Archived
                     }
-                    if (standing != null) rooms.reclaimIfAbandoned(code, DEFAULT_REAPER_GRACE)
-                    var existing = rooms.find(code)
-                    if (existing == null && standing != null) {
+                    if (existing == null && open != null) {
                         val balance = wallets.findOrCreate(userId).balance
-                        if (standing.buyIn > balance) {
+                        if (open.buyIn > balance) {
                             call.respond(HttpStatusCode.BadRequest,
-                                problemEnvelope("insufficient_balance", "That table's buy-in of ${standing.buyIn} is more than your balance of $balance chips."))
+                                problemEnvelope("insufficient_balance", "That table's buy-in of ${open.buyIn} is more than your balance of $balance chips."))
                             return@measureStandingJoin StandingJoinOutcome.InsufficientBalance
                         }
                         val profile = profiles.findOrCreate(userId)
                         existing = rooms.createWithCode(code, userId, profile.displayName,
-                            RoomSettings.forBuyIn(standing.buyIn, standing.maxSeats),
-                            feltProductId = standing.feltProductId, cardBackProductId = standing.cardBackProductId,
+                            RoomSettings.forBuyIn(open.buyIn, open.maxSeats),
+                            feltProductId = open.feltProductId, cardBackProductId = open.cardBackProductId,
                             hostAvatarEmoji = profile.avatarEmoji, hostAvatarBackgroundColor = profile.avatarBackgroundColor)
                     }
+                    // Mirror the matchmaking affordability fence: you can't join a
+                    // table whose buy-in is more than your wallet holds, or escrow
+                    // silently demotes you to spectator. Existing members already sat
+                    // down. An unknown code falls through to join()'s 404.
                     if (existing != null && existing.memberFor(userId) == null) {
                         val balance = wallets.findOrCreate(userId).balance
                         if (existing.buyIn > balance) {

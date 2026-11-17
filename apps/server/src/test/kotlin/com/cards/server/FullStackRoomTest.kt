@@ -113,6 +113,9 @@ class FullStackRoomTest : DatabaseTest() {
             val closed = client.post("/v1/rooms/${table.code}/join") { header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(friend)}") }
             assertEquals(HttpStatusCode.NotFound, closed.status)
             assertTrue(closed.body<kotlinx.serialization.json.JsonObject>().toString().contains("standing_table_closed"))
+            val seated = client.post("/v1/rooms/${table.code}/join") { header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(later)}") }
+            assertEquals(HttpStatusCode.OK, seated.status)
+            assertTrue(seated.body<com.dangerfield.cards.server.routes.JoinRoomResponse>().alreadyJoined)
         }
     }
 
