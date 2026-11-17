@@ -100,6 +100,7 @@ fun Route.standingTableRoutes(
                     ?: return@delete call.respond(HttpStatusCode.NotFound, standingProblem("standing_table_not_found", "Standing table not found."))
                 if (table.ownerUserId != user) return@delete call.respond(HttpStatusCode.Forbidden, standingProblem("not_owner", "Only the owner can delete this table."))
                 tables.archive(table.code, clock.now())
+                rooms.refreshStandingTable(table.code)
                 call.respond(HttpStatusCode.NoContent)
             }
             delete("/{code}/regulars/me") {

@@ -110,6 +110,7 @@ class FullStackRoomTest : DatabaseTest() {
             assertEquals(later.value.toString(), reopened.body<com.dangerfield.cards.server.routes.JoinRoomResponse>().room.hostUserId)
             // Closing also refuses new joins while the current sitting is still in memory.
             client.delete("/v1/standing-tables/${table.code}") { header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(owner)}") }
+            assertNotNull(component.roomService.findLoaded(table.code)?.standingTable?.archivedAt)
             val closed = client.post("/v1/rooms/${table.code}/join") { header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(friend)}") }
             assertEquals(HttpStatusCode.NotFound, closed.status)
             assertTrue(closed.body<kotlinx.serialization.json.JsonObject>().toString().contains("standing_table_closed"))
