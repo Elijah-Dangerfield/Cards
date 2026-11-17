@@ -92,6 +92,7 @@ class InMemoryRoomService(
 ) : RoomService {
 
     private val log = org.slf4j.LoggerFactory.getLogger("RoomService")
+    private val startedAt = clock.now()
 
     private val mutex = Mutex()
     /** All live rooms by code. Each value also owns its own flow for observers. */
@@ -190,7 +191,7 @@ class InMemoryRoomService(
             val host = RoomMember(hostUserId, hostName, 0, now, false, now,
                 sanitizeMemberAvatar(hostAvatarEmoji), hostAvatarBackgroundColor)
             val room = Room(code, hostUserId, now, settings.maxSeats, RoomStatus.Lobby, listOf(host),
-                settings.startingStack, visibility, feltProductId, cardBackProductId, standingTables.find(code))
+                settings.startingStack, visibility, feltProductId, cardBackProductId, findStandingTable(code))
             store.save(room)
             rooms[code] = RoomState(room)
             ServerMetrics.recordStandingMaterialization(StandingMaterializationOutcome.Created)
@@ -204,10 +205,32 @@ class InMemoryRoomService(
 
     override suspend fun refreshStandingTable(code: String) {
         mutex.withLock {
-            rooms[code]?.let { state ->
-                state.update(state.room.copy(standingTable = standingTables.find(code)))
-            }
+            val state = rooms[code] ?: return@withLock
+            val table = Catching { standingTables.find(code) }
+                .onFailure { log.warn("Room $code standing table refresh failed", it) }
+                .getOrNull() ?: return@withLock
+            state.update(state.room.copy(standingTable = table))
         }
+    }
+
+    override suspend fun reclaimIfAbandoned(code: String, grace: Duration): Boolean {
+        val reclaimed = mutex.withLock {
+            val wasLoaded = rooms[code] != null
+            val room = hydrateLocked(code)?.room ?: return@withLock null
+            val cutoff = clock.now() - grace
+            val humans = room.members.filterNot { it.isBot }
+            val nobodyReturnedAfterRestart = !wasLoaded && startedAt <= cutoff
+            val everyoneLeftLongAgo = humans.all { member -> member.disconnectedAt?.let { it <= cutoff } == true }
+            if (humans.any { it.isConnected } || !(nobodyReturnedAfterRestart || everyoneLeftLongAgo)) {
+                return@withLock null
+            }
+            rooms.remove(code)
+            forget(code)
+            room
+        } ?: return false
+        log.info("Room $code reclaimed: no human returned within $grace, ${reclaimed.members.size} stale seats dropped")
+        roomClosedListener.onRoomClosed(reclaimed)
+        return true
     }
 
     override suspend fun join(
@@ -884,11 +907,17 @@ class InMemoryRoomService(
         val loaded = Catching { store.load(code) }
             .onFailure { log.warn("Room $code hydrate failed", it) }
             .getOrNull() ?: return null
-        val state = RoomState(room = loaded.copy(standingTable = standingTables.find(code)))
+        val state = RoomState(room = loaded.copy(standingTable = findStandingTable(code)))
         rooms[code] = state
         log.info("Room $code hydrated from durable store after a cache miss")
         return state
     }
+
+    /** Best-effort: a room without its standing summary still plays; the next refresh restores it. */
+    private suspend fun findStandingTable(code: String) =
+        Catching { standingTables.find(code) }
+            .onFailure { log.warn("Room $code standing table lookup failed", it) }
+            .getOrNull()
 
     /**
      * The member to promote to host when the current host departs (leaves, is

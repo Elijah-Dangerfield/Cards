@@ -22,16 +22,21 @@ class PreviewImageRenderer(private val capacity: Int = 200) {
     private val titleFont = loadFont("DMSerifText-Regular.ttf", 80f)
     private val bodyFont = loadFont("Roboto-Medium.ttf", 40f)
 
+    /** The same image for every code nobody is playing at, so a scan of random codes renders nothing new. */
+    val notOpen: ByteArray by lazy { draw("This table isn't open", subtitle = null, code = null) }
+    val closed: ByteArray by lazy { draw("This table has closed", subtitle = null, code = null) }
+
     @Synchronized
     fun render(code: String, table: StandingTable?, now: Instant): ByteArray {
         val key = Key(code, table?.updatedAt)
         cache[key]?.takeIf { now < it.renderedAt + 5.minutes }?.let { return it.bytes }
-        return draw(code, table, now).also { cache[key] = CachedImage(it, now) }
+        return draw(table?.name ?: "Join my poker game", table?.let { scheduleText(it, now) }, code)
+            .also { cache[key] = CachedImage(it, now) }
     }
 
     internal val cachedImageCount: Int get() = synchronized(this) { cache.size }
 
-    private fun draw(code: String, table: StandingTable?, now: Instant): ByteArray {
+    private fun draw(title: String, subtitle: String?, code: String?): ByteArray {
         val image = BufferedImage(1200, 630, BufferedImage.TYPE_INT_RGB)
         val graphics = image.createGraphics()
         try {
@@ -42,15 +47,16 @@ class PreviewImageRenderer(private val capacity: Int = 200) {
             graphics.fillRect(0, 0, image.width, image.height)
             graphics.color = Color(0xFFFAF4) // ColorResource.WarmWhite
             graphics.font = titleFont
-            val title = table?.name ?: "Join my poker game"
             graphics.drawString(ellipsize(title, graphics.fontMetrics, 1040), 80, 170)
             graphics.font = bodyFont
-            table?.let { graphics.drawString(scheduleText(it, now), 80, 250) }
-            graphics.color = Color(0x262320) // ColorResource.Espresso800
-            graphics.fillRoundRect(80, 310, 530, 105, 32, 32)
-            graphics.color = Color(0xE0BC52) // ColorResource.Gold500
-            graphics.font = bodyFont.deriveFont(50f)
-            graphics.drawString("Code $code", 110, 380)
+            subtitle?.let { graphics.drawString(it, 80, 250) }
+            if (code != null) {
+                graphics.color = Color(0x262320) // ColorResource.Espresso800
+                graphics.fillRoundRect(80, 310, 530, 105, 32, 32)
+                graphics.color = Color(0xE0BC52) // ColorResource.Gold500
+                graphics.font = bodyFont.deriveFont(50f)
+                graphics.drawString("Code $code", 110, 380)
+            }
             graphics.color = Color(0xFFFAF4)
             graphics.font = titleFont.deriveFont(44f)
             graphics.drawString("Downcard", 80, 555)

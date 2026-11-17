@@ -8,6 +8,8 @@ import kotlinx.coroutines.yield
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 
 class RoomCodeAllocatorTest {
     @Test fun skipsSavedRoomsStandingTablesAndLoadedRooms() = runTest {
@@ -30,6 +32,17 @@ class RoomCodeAllocatorTest {
         val allocator = DefaultRoomCodeAllocator(random, store, NoOpStandingTableRepository)
         val codes = List(2) { async { allocator.withCode { code -> yield(); used.add(code); code } } }.awaitAll()
         assertEquals(listOf("AAAAAA", "BBBBBB"), codes)
-
+    }
+    @Test fun remembersOnlyARecentWindowOfAllocatedCodes() = runTest {
+        val allocator = DefaultRoomCodeAllocator(Random(7), NoOpRoomStore, NoOpStandingTableRepository)
+        repeat(DefaultRoomCodeAllocator.REMEMBERED_CODE_LIMIT + 50) { allocator.withCode { it } }
+        assertEquals(DefaultRoomCodeAllocator.REMEMBERED_CODE_LIMIT, allocator.rememberedCodeCount)
+    }
+    @Test fun aFailedUniquenessCheckFailsTheCreateInsteadOfHandingOutAnUncheckedCode() = runTest {
+        val store = object : RoomStore by NoOpRoomStore { override suspend fun codeTaken(code: String) = error("Database unavailable") }
+        var created = false
+        val allocator = DefaultRoomCodeAllocator(Random(0), store, NoOpStandingTableRepository)
+        assertFailsWith<IllegalStateException> { allocator.withCode { created = true } }
+        assertFalse(created)
     }
 }

@@ -75,9 +75,9 @@ class StandingTableMetricsTest {
             override suspend fun find(code: String) = listOf(table, archived).firstOrNull { it.code == code }
         }
         val rooms = InMemoryRoomService(clock)
-        rooms.createWithCode("AAAAAA", table.ownerUserId, "Host", RoomSettings.forBuyIn(5000, 2))
+        rooms.createWithCode("AAAAAA", table.ownerUserId!!, "Host", RoomSettings.forBuyIn(5000, 2))
         // The archived code still has a live sitting, but must never count as an ordinary invite.
-        rooms.createWithCode(archived.code, table.ownerUserId, "Host", RoomSettings.forBuyIn(5000, 2))
+        rooms.createWithCode(archived.code, table.ownerUserId!!, "Host", RoomSettings.forBuyIn(5000, 2))
         application {
             installRateLimits(AdminConfig(null, 30, 6))
             routing { sharePageRoutes(tables, rooms, profiles, clock) }
@@ -142,7 +142,7 @@ class StandingTableMetricsTest {
             installStatusPages()
             routing { roomRoutes(rooms, profiles, wallets, newRegistry(), InMemoryTestTableSessionService(wallets), tables, clock) }
         }
-        val host = table.ownerUserId
+        val host = table.ownerUserId!!
         val friend = UserId(UUID.randomUUID())
         val third = UserId(UUID.randomUUID())
         suspend fun join(code: String, user: UserId) = client.post("/v1/rooms/$code/join") {
@@ -156,12 +156,14 @@ class StandingTableMetricsTest {
         assertEquals(HttpStatusCode.NotFound, join(table.code, third).status)
         archived = false
         failRegularWrite = true
+        assertEquals(HttpStatusCode.OK, join(table.code, host).status)
+        profiles.unavailable = true
         assertEquals(HttpStatusCode.InternalServerError, join(table.code, host).status)
+        profiles.unavailable = false
         assertEquals(HttpStatusCode.NotFound, join("ZZZZZZ", third).status)
-        for (outcome in listOf("already_joined", "joined", "full", "insufficient_balance", "archived", "error")) {
-            assertEquals(1L, count("cards.standing_tables.join.requests", outcome))
-        }
-        assertEquals(6L, points("cards.standing_tables.join.requests").sumOf { it.value })
+        val expected = mapOf("already_joined" to 2L, "joined" to 1L, "full" to 1L, "insufficient_balance" to 1L, "archived" to 1L, "error" to 1L)
+        for ((outcome, total) in expected) assertEquals(total, count("cards.standing_tables.join.requests", outcome), outcome)
+        assertEquals(7L, points("cards.standing_tables.join.requests").sumOf { it.value })
         assertEquals(1L, count("cards.standing_tables.materializations", "created"))
         assertTrue(points("cards.standing_tables.join.requests").all { it.attributes.asMap().size == 1 })
     }
@@ -169,12 +171,12 @@ class StandingTableMetricsTest {
     @Test fun materializationCountsCreatedReusedAndFailureWithoutCountingCancellation() = runBlocking {
         val rooms = InMemoryRoomService(clock)
         val settings = RoomSettings.forBuyIn(5000, 2)
-        rooms.createWithCode(table.code, table.ownerUserId, "Host", settings)
-        rooms.createWithCode(table.code, table.ownerUserId, "Host", settings)
+        rooms.createWithCode(table.code, table.ownerUserId!!, "Host", settings)
+        rooms.createWithCode(table.code, table.ownerUserId!!, "Host", settings)
         val brokenStore = object : RoomStore by NoOpRoomStore { override suspend fun save(room: Room) = error("Store unavailable") }
-        assertFailsWith<IllegalStateException> { InMemoryRoomService(clock, store = brokenStore).createWithCode("AAAAAA", table.ownerUserId, "Host", settings) }
+        assertFailsWith<IllegalStateException> { InMemoryRoomService(clock, store = brokenStore).createWithCode("AAAAAA", table.ownerUserId!!, "Host", settings) }
         val cancelledStore = object : RoomStore by NoOpRoomStore { override suspend fun save(room: Room) { throw CancellationException("Request cancelled") } }
-        assertFailsWith<CancellationException> { InMemoryRoomService(clock, store = cancelledStore).createWithCode("BBBBBB", table.ownerUserId, "Host", settings) }
+        assertFailsWith<CancellationException> { InMemoryRoomService(clock, store = cancelledStore).createWithCode("BBBBBB", table.ownerUserId!!, "Host", settings) }
         for (outcome in listOf("created", "reused", "error")) assertEquals(1L, count("cards.standing_tables.materializations", outcome))
         assertEquals(3L, points("cards.standing_tables.materializations").sumOf { it.value })
     }
@@ -190,8 +192,10 @@ class StandingTableMetricsTest {
 }
 
 private class MetricsProfiles(private val now: Instant) : ProfileRepository {
+    var unavailable = false
     override suspend fun findById(userId: UserId) = Profile(userId, "Host", "", null, now, now)
-    override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform) = findById(userId)
+    override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform) =
+        findById(userId).also { check(!unavailable) { "Profiles unavailable" } }
     override suspend fun update(userId: UserId, displayName: String?, avatarEmoji: String?, avatarBackgroundColor: String?, clearAvatarBackgroundColor: Boolean): UpdateProfileOutcome = error("Not used")
     override suspend fun delete(userId: UserId) = error("Not used")
     override suspend fun touchInstallId(userId: UserId, installId: UUID): UUID? = error("Not used")

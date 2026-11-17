@@ -26,6 +26,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.assertIs
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
@@ -105,6 +106,90 @@ class InMemoryRoomServiceTest {
             result.room.members.map { it.userId }.toSet(),
             "the joiner lands in the persisted room alongside its host",
         )
+    }
+
+    @Test
+    fun aStandingTableLookupFailureDoesNotBreakOpeningJoiningOrRefreshingARoom() = runTest {
+        val store = FakeRoomStore()
+        val unavailable = object : com.dangerfield.cards.server.domain.StandingTableRepository by
+            com.dangerfield.cards.server.domain.NoOpStandingTableRepository {
+            override suspend fun find(code: String) = error("Standing tables unavailable")
+        }
+        val opened = InMemoryRoomService(FixedClock(), Random(0L), store, standingTables = unavailable)
+            .createWithCode("K7M2QX", host, "Host", com.dangerfield.cards.libraries.gameplay.RoomSettings.forBuyIn(5000, 4))
+        assertNull(opened.standingTable)
+
+        val afterRestart = InMemoryRoomService(FixedClock(), Random(1L), store, standingTables = unavailable)
+        assertIs<JoinResult.Success>(afterRestart.join("K7M2QX", alice, "Alice"))
+        afterRestart.refreshStandingTable("K7M2QX")
+        assertEquals(2, assertNotNull(afterRestart.find("K7M2QX")).members.size)
+    }
+
+    @Test
+    fun reclaimIfAbandoned_dropsAStalePersistedRoom_andClosesItsSession() = runTest {
+        val store = FakeRoomStore()
+        val clock = AdvanceableClock()
+        val lastWeek = InMemoryRoomService(clock, Random(0L), store)
+        lastWeek.createWithCode("K7M2QX", host, "Host", com.dangerfield.cards.libraries.gameplay.RoomSettings.forBuyIn(5000, 4))
+        lastWeek.join("K7M2QX", alice, "Alice")
+
+        clock.advance(7.days)
+        val closed = RecordingRoomClosedListener()
+        val restarted = InMemoryRoomService(clock, Random(1L), store, closed)
+
+        assertTrue(restarted.reclaimIfAbandoned("K7M2QX", 5.minutes))
+        assertEquals(listOf("K7M2QX"), closed.closedCodes)
+        assertNull(store.load("K7M2QX"))
+        assertNull(restarted.find("K7M2QX"))
+    }
+
+    @Test
+    fun reclaimIfAbandoned_keepsARoomRehydratedWithinTheGraceAfterARestart() = runTest {
+        val store = FakeRoomStore()
+        val clock = AdvanceableClock()
+        val beforeRestart = InMemoryRoomService(clock, Random(0L), store)
+        val code = beforeRestart.createOrFail(host, "Host").code
+        beforeRestart.markConnected(code, host, connected = true)
+        store.save(assertNotNull(store.load(code)).let { room ->
+            room.copy(members = room.members.map { it.copy(isConnected = false) })
+        })
+
+        clock.advance(1.minutes)
+        val restarted = InMemoryRoomService(clock, Random(1L), store)
+        clock.advance(1.minutes)
+
+        assertEquals(false, restarted.reclaimIfAbandoned(code, 5.minutes))
+        assertNotNull(restarted.find(code))
+    }
+
+    @Test
+    fun reclaimIfAbandoned_reclaimsANullStampedRoomOnceTheProcessHasOutlivedTheGrace() = runTest {
+        val store = FakeRoomStore()
+        val clock = AdvanceableClock()
+        val beforeRestart = InMemoryRoomService(clock, Random(0L), store)
+        val code = beforeRestart.createOrFail(host, "Host").code
+        beforeRestart.markConnected(code, host, connected = true)
+        store.save(assertNotNull(store.load(code)).let { room ->
+            room.copy(members = room.members.map { it.copy(isConnected = false) })
+        })
+
+        val restarted = InMemoryRoomService(clock, Random(1L), store)
+        clock.advance(6.minutes)
+
+        assertTrue(restarted.reclaimIfAbandoned(code, 5.minutes))
+    }
+
+    @Test
+    fun reclaimIfAbandoned_keepsALoadedRoomWithAConnectedHuman() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock, Random(0L), FakeRoomStore())
+        val code = service.createOrFail(host, "Host").code
+        service.join(code, alice, "Alice")
+        service.markConnected(code, host, connected = true)
+        clock.advance(1.days)
+
+        assertEquals(false, service.reclaimIfAbandoned(code, 5.minutes))
+        assertEquals(2, assertNotNull(service.find(code)).members.size)
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.dangerfield.cards.server.domain.StandingTablePatch
 import com.dangerfield.cards.server.domain.StandingTableRepository
 import com.dangerfield.cards.server.domain.StandingTableRules
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
+import com.dangerfield.cards.server.plugins.isAnonymousUser
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
@@ -35,6 +36,9 @@ fun Route.standingTableRoutes(
         route("/v1/standing-tables") {
             post {
                 val user = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                if (call.isAnonymousUser()) {
+                    return@post call.respond(HttpStatusCode.Forbidden, standingProblem("account_required", "Sign in to start a standing table."))
+                }
                 val body = call.receive<CreateStandingTableRequest>()
                 val field = StandingTableRules.invalidField(body.name, body.buyIn, body.maxSeats, body.weekday, body.localTime, body.timeZone, body.durationMinutes)
                 if (field != null) return@post call.respond(HttpStatusCode.BadRequest, standingProblem("bad_request", "$field is invalid."))
@@ -55,7 +59,7 @@ fun Route.standingTableRoutes(
                 val user = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
                 val now = clock.now()
                 val result = tables.listForUser(user).map { table ->
-                    table.toDto(user, profiles.findById(table.ownerUserId)?.displayName.orEmpty(), tables.regularCount(table.code), rooms.findLoaded(table.code), now)
+                    table.toDto(user, profiles.ownerName(table), tables.regularCount(table.code), rooms.findLoaded(table.code), now)
                 }.sortedWith(compareByDescending<StandingTableDto> { it.isOwner }.thenBy { it.nextStartsAt })
                 call.respond(StandingTablesResponse(tables = result))
             }
@@ -63,11 +67,11 @@ fun Route.standingTableRoutes(
                 val user = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
                 val table = call.parameters["code"]?.uppercase()?.let { tables.find(it) }
                     ?: return@get call.respond(HttpStatusCode.NotFound, standingProblem("standing_table_not_found", "Standing table not found."))
-                call.respond(table.toDto(user, profiles.findById(table.ownerUserId)?.displayName.orEmpty(), tables.regularCount(table.code), rooms.findLoaded(table.code), clock.now()))
+                call.respond(table.toDto(user, profiles.ownerName(table), tables.regularCount(table.code), rooms.findLoaded(table.code), clock.now()))
             }
             patch("/{code}") {
                 val user = call.userId() ?: return@patch call.respond(HttpStatusCode.Unauthorized)
-                val table = call.parameters["code"]?.uppercase()?.let { tables.find(it) }?.takeIf { it.archivedAt == null }
+                val table = call.parameters["code"]?.uppercase()?.let { tables.find(it) }?.takeUnless { it.isArchived }
                     ?: return@patch call.respond(HttpStatusCode.NotFound, standingProblem("standing_table_not_found", "Standing table not found."))
                 if (table.ownerUserId != user) return@patch call.respond(HttpStatusCode.Forbidden, standingProblem("not_owner", "Only the owner can edit this table."))
                 val body = call.receive<PatchStandingTableRequest>()
@@ -92,7 +96,7 @@ fun Route.standingTableRoutes(
                 )) ?: return@patch call.respond(HttpStatusCode.NotFound,
                     standingProblem("standing_table_not_found", "Standing table not found."))
                 rooms.refreshStandingTable(table.code)
-                call.respond(updated.toDto(user, profiles.findById(table.ownerUserId)?.displayName.orEmpty(), tables.regularCount(table.code), rooms.findLoaded(table.code), clock.now()))
+                call.respond(updated.toDto(user, profiles.ownerName(table), tables.regularCount(table.code), rooms.findLoaded(table.code), clock.now()))
             }
             delete("/{code}") {
                 val user = call.userId() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
@@ -100,6 +104,7 @@ fun Route.standingTableRoutes(
                     ?: return@delete call.respond(HttpStatusCode.NotFound, standingProblem("standing_table_not_found", "Standing table not found."))
                 if (table.ownerUserId != user) return@delete call.respond(HttpStatusCode.Forbidden, standingProblem("not_owner", "Only the owner can delete this table."))
                 tables.archive(table.code, clock.now())
+                rooms.refreshStandingTable(table.code)
                 call.respond(HttpStatusCode.NoContent)
             }
             delete("/{code}/regulars/me") {
@@ -112,6 +117,9 @@ fun Route.standingTableRoutes(
         }
     }
 }
+
+private suspend fun ProfileRepository.ownerName(table: StandingTable): String =
+    table.ownerUserId?.let { findById(it)?.displayName }.orEmpty()
 
 private fun standingProblem(code: String, message: String): Map<String, Map<String, String>> =
     mapOf("error" to mapOf("code" to code, "message" to message))

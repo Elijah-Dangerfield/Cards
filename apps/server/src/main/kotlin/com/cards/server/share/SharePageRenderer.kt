@@ -8,15 +8,20 @@ internal object SharePageRenderer {
     private val template = checkNotNull(javaClass.getResource("/share/page.html")).readText()
     private val placeholders = Regex("\\{\\{(\\w+)}}")
 
-    fun render(code: String, table: StandingTable?, room: Room?, owner: String, shareUrl: String, now: Instant): String {
-        val title = when {
-            table != null -> "${table.name} · Downcard"
-            room != null -> "Join my poker game on Downcard"
-            else -> "This table isn't open right now · Downcard"
+    fun render(
+        code: String, table: StandingTable?, room: Room?, closed: Boolean, owner: String, shareUrl: String, now: Instant,
+    ): String {
+        val heading = when {
+            table != null -> table.name
+            room != null -> "Join my poker game"
+            closed -> "This table has closed"
+            else -> "This table isn't open right now"
         }
+        val title = if (room != null && table == null) "Join my poker game on Downcard" else "$heading · Downcard"
         val description = when {
             table != null -> "Every ${weekdayName(table)} at ${timeAndZone(table, now)}. Room code $code. Tap to grab a seat."
-            room != null -> "Room code $code. ${room.members.size} seated. Tap to join."
+            room != null -> "Room code $code. ${room.connectedHumanCount} seated. Tap to join."
+            closed -> "Its host closed this standing table. Get Downcard and start a game of your own."
             else -> "This table isn't open right now. Get Downcard and try the code when your friends are ready."
         }
         val calendar = table?.let {
@@ -24,7 +29,7 @@ internal object SharePageRenderer {
         }.orEmpty()
         val values = mapOf(
             "title" to escapeHtml(title),
-            "heading" to escapeHtml(table?.name ?: if (room != null) "Join my poker game" else "This table isn't open right now"),
+            "heading" to escapeHtml(heading),
             "description" to escapeHtml(description),
             "owner" to if (table != null) "<p>${escapeHtml(owner)}'s table</p>" else "",
             "code" to escapeHtml(code),

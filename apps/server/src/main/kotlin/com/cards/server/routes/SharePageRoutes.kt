@@ -41,10 +41,10 @@ fun Route.sharePageRoutes(
 ) {
     rateLimit(RateLimitName(SHARE_PAGE_LIMIT)) {
         get("/j/assets/body.ttf") {
-            call.respondBytes(shareResource("/share/fonts/Roboto-Medium.ttf"), ContentType("font", "ttf"))
+            call.respondBytes(bodyFontBytes, ContentType("font", "ttf"))
         }
         get("/j/assets/app-icon.png") {
-            call.respondBytes(shareResource("/share/app-icon.png"), ContentType.Image.PNG)
+            call.respondBytes(appIconBytes, ContentType.Image.PNG)
         }
         inviteRoutes("/j/{code}", tables, rooms, profiles, clock, renderer)
         host("join.downcard.app") {
@@ -66,9 +66,10 @@ private fun Route.inviteRoutes(
             measureShareRequest(ShareSurface.Page) {
                 val code = call.validShareCode() ?: return@measureShareRequest call.invalidShareCode()
                 val target = resolveShareTarget(code, tables, rooms)
-                val owner = target.table?.let { profiles.findById(it.ownerUserId)?.displayName }.orEmpty()
+                val owner = target.table?.ownerUserId?.let { profiles.findById(it)?.displayName }.orEmpty()
                 call.respondText(
-                    SharePageRenderer.render(code, target.table, target.room, owner, call.shareUrl(code), clock.now()),
+                    SharePageRenderer.render(code, target.table, target.room, target.outcome == ShareOutcome.Archived,
+                        owner, call.shareUrl(code), clock.now()),
                     ContentType.Text.Html,
                 )
                 target.outcome
@@ -83,9 +84,7 @@ private fun Route.inviteRoutes(
                     call.notFound()
                     return@measureShareRequest target.outcome
                 }
-                val filename = table.name.replace(Regex("[^\\p{L}\\p{N} ._-]"), "_") + ".ics"
-                call.response.header(HttpHeaders.ContentDisposition,
-                    ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename).toString())
+                call.response.header(HttpHeaders.ContentDisposition, calendarDisposition(table.name).toString())
                 call.respondText(IcsBuilder.build(table, call.shareUrl(code), clock.now()), ContentType("text", "calendar"))
                 target.outcome
             }
@@ -95,7 +94,12 @@ private fun Route.inviteRoutes(
                 val code = call.validShareCode() ?: return@measureShareRequest call.invalidShareCode()
                 val target = resolveShareTarget(code, tables, rooms)
                 call.response.header(HttpHeaders.CacheControl, "public, max-age=300")
-                call.respondBytes(renderer.render(code, target.table, clock.now()), ContentType.Image.PNG)
+                val image = when (target.outcome) {
+                    ShareOutcome.Archived -> renderer.closed
+                    ShareOutcome.Unknown -> renderer.notOpen
+                    else -> renderer.render(code, target.table, clock.now())
+                }
+                call.respondBytes(image, ContentType.Image.PNG)
                 target.outcome
             }
         }
@@ -106,10 +110,10 @@ private data class ShareTarget(val table: StandingTable?, val room: Room?, val o
 
 private suspend fun resolveShareTarget(code: String, tables: StandingTableRepository, rooms: RoomService): ShareTarget {
     val storedTable = tables.find(code)
-    val table = storedTable?.takeIf { it.archivedAt == null }
-    val room = if (storedTable?.archivedAt == null) rooms.findLoaded(code) else null
+    val table = storedTable?.takeUnless { it.isArchived }
+    val room = if (storedTable?.isArchived != true) rooms.findLoaded(code) else null
     val outcome = when {
-        storedTable?.archivedAt != null -> ShareOutcome.Archived
+        storedTable?.isArchived == true -> ShareOutcome.Archived
         table != null -> ShareOutcome.Standing
         room != null -> ShareOutcome.Ordinary
         else -> ShareOutcome.Unknown
@@ -133,6 +137,17 @@ private fun ApplicationCall.shareUrl(code: String): String {
     val origin = if (host == "127.0.0.1" || host == "localhost") "http://$host:${request.port()}" else "https://$host"
     return if (host == "join.downcard.app") "$origin/$code" else "$origin/j/$code"
 }
+
+private fun calendarDisposition(name: String): ContentDisposition {
+    val unicode = name.replace(Regex("[^\\p{L}\\p{N} ._-]"), "_") + ".ics"
+    val ascii = unicode.replace(Regex("[^A-Za-z0-9 ._-]"), "_")
+    return ContentDisposition.Attachment
+        .withParameter(ContentDisposition.Parameters.FileName, ascii)
+        .withParameter(ContentDisposition.Parameters.FileNameAsterisk, unicode, encodeValue = true)
+}
+
+private val bodyFontBytes: ByteArray by lazy { shareResource("/share/fonts/Roboto-Medium.ttf") }
+private val appIconBytes: ByteArray by lazy { shareResource("/share/app-icon.png") }
 
 private fun shareResource(path: String): ByteArray =
     checkNotNull(PreviewImageRenderer::class.java.getResourceAsStream(path)).use { it.readBytes() }

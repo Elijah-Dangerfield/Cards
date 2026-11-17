@@ -86,7 +86,7 @@ internal fun StandingTable.toDto(
 ) = StandingTableDto(
     code = code,
     name = name,
-    ownerUserId = ownerUserId.value.toString(),
+    ownerUserId = ownerUserId?.value?.toString().orEmpty(),
     ownerDisplayName = ownerName,
     isOwner = viewer == ownerUserId,
     buyIn = buyIn,
@@ -99,11 +99,11 @@ internal fun StandingTable.toDto(
     regularCount = regulars,
     live = room?.let {
         StandingTableLiveDto(
-            seatedHumans = it.members.count { member -> !member.isBot && member.isConnected },
+            seatedHumans = it.connectedHumanCount,
             status = if (it.status == RoomStatus.Playing) "playing" else "lobby",
         )
     },
-    archived = archivedAt != null,
+    archived = isArchived,
     feltProductId = feltProductId,
     cardBackProductId = cardBackProductId,
 )

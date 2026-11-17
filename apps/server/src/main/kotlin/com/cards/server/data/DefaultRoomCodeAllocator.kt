@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.data
 
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.RoomCodeAllocator
 import com.dangerfield.cards.server.domain.RoomStore
@@ -7,6 +8,7 @@ import com.dangerfield.cards.server.domain.StandingTableRepository
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
+import org.slf4j.LoggerFactory
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import kotlin.random.Random
@@ -19,9 +21,13 @@ class DefaultRoomCodeAllocator(
     private val store: RoomStore,
     private val standingTables: StandingTableRepository,
 ) : RoomCodeAllocator {
+    private val log = LoggerFactory.getLogger("RoomCodeAllocator")
     private val mutex = Mutex()
-    // A failed write-through can leave a live room only in memory until its next mutation.
-    private val allocatedCodes = mutableSetOf<String>()
+    // A failed write-through can leave a live room only in memory until its next mutation,
+    // so recent codes are remembered. Older rooms have persisted or closed by the time they age out.
+    private val allocatedCodes = LinkedHashSet<String>()
+
+    internal val rememberedCodeCount: Int get() = allocatedCodes.size
 
     // Hold the allocation lock through the insert, so room and table creation cannot race.
     override suspend fun <T> withCode(inMemoryCodes: Set<String>, create: suspend (String) -> T): T = mutex.withLock {
@@ -31,12 +37,26 @@ class DefaultRoomCodeAllocator(
                     append(InMemoryRoomService.CODE_ALPHABET[random.nextInt(InMemoryRoomService.CODE_ALPHABET.length)])
                 }
             }
-            if (code !in allocatedCodes && code !in inMemoryCodes && !store.codeTaken(code) && !standingTables.exists(code)) {
+            if (code !in allocatedCodes && code !in inMemoryCodes && isFree(code)) {
                 val result = create(code)
-                if (result != null) allocatedCodes.add(code)
+                if (result != null) remember(code)
                 return@withLock result
             }
         }
         error("Couldn't allocate a free room code after 50 attempts")
+    }
+
+    private fun remember(code: String) {
+        allocatedCodes.add(code)
+        if (allocatedCodes.size > REMEMBERED_CODE_LIMIT) allocatedCodes.remove(allocatedCodes.first())
+    }
+
+    private suspend fun isFree(code: String): Boolean =
+        Catching { !store.codeTaken(code) && !standingTables.exists(code) }
+            .onFailure { log.warn("Room code uniqueness check failed; refusing to allocate", it) }
+            .getOrThrow()
+
+    companion object {
+        const val REMEMBERED_CODE_LIMIT = 10_000
     }
 }

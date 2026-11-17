@@ -12,8 +12,10 @@ import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.sampleStandingTable
 import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.server.plugins.installRateLimits
+import com.dangerfield.cards.server.share.PreviewImageRenderer
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -31,6 +33,7 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -42,7 +45,7 @@ class SharePageRoutesTest {
     private val tables = object : StandingTableRepository by NoOpStandingTableRepository {
         override suspend fun find(code: String) = table.takeIf { it.code == code }
     }
-    private val profiles = ShareTestProfiles(table.ownerUserId, "<script>Owner</script>", now)
+    private val profiles = ShareTestProfiles(table.ownerUserId!!, "<script>Owner</script>", now)
 
     @Test fun escapesNamesAndSupportsBareCodeOnlyOnJoinHost() = testApplication {
         val rooms = InMemoryRoomService(clock)
@@ -73,7 +76,7 @@ class SharePageRoutesTest {
             override suspend fun find(code: String) = archived.takeIf { it.code == code }
         }
         val rooms = InMemoryRoomService(clock)
-        rooms.createWithCode(table.code, table.ownerUserId, "Host", RoomSettings.forBuyIn(5000, 6))
+        rooms.createWithCode(table.code, table.ownerUserId!!, "Host", RoomSettings.forBuyIn(5000, 6))
         application {
             installRateLimits(AdminConfig(null, 30, 6))
             routing { sharePageRoutes(archivedTables, rooms, profiles, clock) }
@@ -81,32 +84,73 @@ class SharePageRoutesTest {
         val response = client.get("/j/${table.code}")
         assertEquals(HttpStatusCode.OK, response.status)
         val html = response.bodyAsText()
-        assertTrue(html.contains("<h1>This table isn&#39;t open right now</h1>"))
-        assertFalse(html.contains("1 seated"))
+        assertTrue(html.contains("<h1>This table has closed</h1>"))
+        assertFalse(html.contains("seated"))
         assertFalse(html.contains("id=\"calendar\""))
         assertEquals(HttpStatusCode.NotFound, client.get("/j/${table.code}/calendar.ics").status)
+        val closedImage = client.get("/j/${table.code}/preview.png").bodyAsBytes()
+        assertFalse(closedImage.contentEquals(PreviewImageRenderer().render(table.code, null, now)))
+        assertFalse(closedImage.contentEquals(client.get("/j/AAAAAA/preview.png").bodyAsBytes()))
     }
 
-    @Test fun enforcesSixtyRequestsPerIpPerMinute() = testApplication {
+    @Test fun unknownCodesShareOneRenderedImage() = testApplication {
+        val renderer = PreviewImageRenderer()
+        application {
+            installRateLimits(AdminConfig(null, 30, 6))
+            routing { sharePageRoutes(tables, InMemoryRoomService(clock), profiles, clock, renderer) }
+        }
+        val first = client.get("/j/AAAAAA/preview.png").bodyAsBytes()
+        val second = client.get("/j/BBBBBB/preview.png").bodyAsBytes()
+        assertTrue(first.contentEquals(second))
+        assertEquals(0, renderer.cachedImageCount)
+    }
+
+    @Test fun ordinaryRoomCountsOnlyConnectedHumansAsSeated() = testApplication {
+        val rooms = InMemoryRoomService(clock)
+        rooms.createWithCode("ABCD23", table.ownerUserId!!, "Host", RoomSettings.forBuyIn(5000, 6))
+        rooms.join("ABCD23", UserId(UUID.randomUUID()), "Ghost")
+        rooms.markConnected("ABCD23", table.ownerUserId!!, connected = true)
+        application {
+            installRateLimits(AdminConfig(null, 30, 6))
+            routing { sharePageRoutes(tables, rooms, profiles, clock) }
+        }
+        assertTrue(client.get("/j/ABCD23").bodyAsText().contains("1 seated"))
+    }
+
+    @Test fun calendarFilenameStaysAsciiWithAnEncodedUnicodeName() = testApplication {
+        val cafe = table.copy(name = "Café Poker")
+        val cafeTables = object : StandingTableRepository by NoOpStandingTableRepository {
+            override suspend fun find(code: String) = cafe.takeIf { it.code == code }
+        }
+        application {
+            installRateLimits(AdminConfig(null, 30, 6))
+            routing { sharePageRoutes(cafeTables, InMemoryRoomService(clock), profiles, clock) }
+        }
+        val disposition = assertNotNull(client.get("/j/${cafe.code}/calendar.ics").headers[HttpHeaders.ContentDisposition])
+        assertTrue(disposition.all { it.code < 128 }, disposition)
+        assertTrue(disposition.contains("filename*=utf-8''Caf%C3%A9"), disposition)
+    }
+
+    @Test fun allowsChatCrawlersSharingAnIpSixHundredRequestsPerMinute() = testApplication {
         application {
             installRateLimits(AdminConfig(null, 30, 6))
             routing { sharePageRoutes(tables, InMemoryRoomService(clock), profiles, clock) }
         }
-        repeat(60) { assertEquals(HttpStatusCode.OK, client.get("/j/AAAAAA").status) }
+        repeat(600) { assertEquals(HttpStatusCode.OK, client.get("/j/AAAAAA").status) }
         assertEquals(HttpStatusCode.TooManyRequests, client.get("/j/AAAAAA").status)
         assertEquals(HttpStatusCode.OK, client.get("/j/AAAAAA") { header("Fly-Client-IP", "192.0.2.25") }.status)
     }
 
     @Test fun savesEvidenceFetchedFromRealLocalServerWithoutExternalServices() = runBlocking {
         val rooms = InMemoryRoomService(clock)
-        rooms.createWithCode("ABCD23", table.ownerUserId, "Host", RoomSettings.forBuyIn(5000, 6))
+        rooms.createWithCode("ABCD23", table.ownerUserId!!, "Host", RoomSettings.forBuyIn(5000, 6))
         val evidenceTable = table.copy(name = "Thursday Night Poker")
         val evidenceTables = object : StandingTableRepository by NoOpStandingTableRepository {
             override suspend fun find(code: String) = evidenceTable.takeIf { it.code == code }
         }
         val server = embeddedServer(Netty, host = "127.0.0.1", port = 0) {
             installRateLimits(AdminConfig(null, 30, 6))
-            routing { sharePageRoutes(evidenceTables, rooms, ShareTestProfiles(table.ownerUserId, "Maexj", now), clock) }
+            routing { sharePageRoutes(evidenceTables, rooms, ShareTestProfiles(table.ownerUserId!!, "Maexj", now), clock) }
         }.start(wait = false)
         try {
             val port = server.engine.resolvedConnectors().first().port

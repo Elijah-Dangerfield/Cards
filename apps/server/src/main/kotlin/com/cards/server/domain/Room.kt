@@ -69,6 +69,7 @@ data class Room(
 
     val seatCount: Int get() = members.size
     val isFull: Boolean get() = seatCount >= maxSeats
+    val connectedHumanCount: Int get() = members.count { !it.isBot && it.isConnected }
     fun memberFor(userId: UserId): RoomMember? = members.firstOrNull { it.userId == userId }
 
     /**
@@ -215,6 +216,13 @@ interface RoomService {
 
     suspend fun findLoaded(code: String): Room? = find(code)
     suspend fun refreshStandingTable(code: String) = Unit
+
+    /**
+     * Drops [code]'s room when nobody has come back for it within [grace], so a
+     * reused standing-table code opens fresh instead of reviving last week's
+     * seats. True when a room was reclaimed.
+     */
+    suspend fun reclaimIfAbandoned(code: String, grace: Duration): Boolean = false
 
     /**
      * Idempotent join. If the user is already a member, returns

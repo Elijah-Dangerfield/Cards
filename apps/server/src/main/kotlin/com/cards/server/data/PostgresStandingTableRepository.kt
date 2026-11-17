@@ -14,8 +14,11 @@ import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import me.tatarka.inject.annotations.Inject
+import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNotNull
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNull
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
@@ -35,7 +38,7 @@ class PostgresStandingTableRepository(private val database: Database) : Standing
         database.transaction {
             Tables.insert {
                 it[code] = table.code
-                it[ownerUserId] = table.ownerUserId.value
+                it[ownerUserId] = checkNotNull(table.ownerUserId).value
                 it[name] = table.name
                 it[buyIn] = table.buyIn
                 it[maxSeats] = table.maxSeats
@@ -57,14 +60,14 @@ class PostgresStandingTableRepository(private val database: Database) : Standing
     override suspend fun listForUser(userId: UserId): List<StandingTable> = database.transaction {
         val regularCodes = Regulars.selectAll().where { Regulars.userId eq userId.value }.map { it[Regulars.code] }
         Tables.selectAll().where {
-            ((Tables.ownerUserId eq userId.value) or (Tables.code inList regularCodes)) and Tables.archivedAt.isNull()
+            ((Tables.ownerUserId eq userId.value) or (Tables.code inList regularCodes)) and Tables.isOpen()
         }.map { it.toStandingTable() }
     }
     override suspend fun countActiveOwnedBy(userId: UserId): Int = database.transaction {
         Tables.selectAll().where { (Tables.ownerUserId eq userId.value) and Tables.archivedAt.isNull() }.count().toInt()
     }
     override suspend fun update(code: String, patch: StandingTablePatch): StandingTable? = database.transaction {
-        val changed = Tables.update({ (Tables.code eq code) and Tables.archivedAt.isNull() }) {
+        val changed = Tables.update({ (Tables.code eq code) and Tables.isOpen() }) {
             patch.name?.let { value -> it[name] = value }
             patch.buyIn?.let { value -> it[buyIn] = value }
             patch.maxSeats?.let { value -> it[maxSeats] = value }
@@ -100,8 +103,10 @@ class PostgresStandingTableRepository(private val database: Database) : Standing
     }
 }
 
+private fun Tables.isOpen(): Op<Boolean> = archivedAt.isNull() and ownerUserId.isNotNull()
+
 private fun ResultRow.toStandingTable(): StandingTable = StandingTable(
-    code = this[Tables.code], ownerUserId = UserId(this[Tables.ownerUserId]), name = this[Tables.name],
+    code = this[Tables.code], ownerUserId = this[Tables.ownerUserId]?.let(::UserId), name = this[Tables.name],
     buyIn = this[Tables.buyIn], maxSeats = this[Tables.maxSeats], weekday = DayOfWeek.entries[this[Tables.weekday].toInt() - 1],
     localTime = this[Tables.localTime].let { LocalTime(it.hour, it.minute) }, timeZone = TimeZone.of(this[Tables.timeZone]),
     durationMinutes = this[Tables.durationMinutes], feltProductId = this[Tables.feltProductId], cardBackProductId = this[Tables.cardBackProductId],

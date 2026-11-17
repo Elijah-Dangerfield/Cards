@@ -92,10 +92,11 @@ internal object RoomSocketTestAuth {
     const val SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef"
 
     /** A signed Supabase-shaped JWT for [userId], valid for one minute. */
-    fun jwt(userId: UserId): String = JWT.create()
+    fun jwt(userId: UserId, anonymous: Boolean = false): String = JWT.create()
         .withIssuer(ISSUER)
         .withAudience("authenticated")
         .withSubject(userId.value.toString())
+        .withClaim("is_anonymous", anonymous)
         .withIssuedAt(Date())
         .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
         .sign(Algorithm.HMAC256(SECRET))

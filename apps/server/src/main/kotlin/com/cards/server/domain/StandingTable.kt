@@ -7,7 +7,7 @@ import kotlin.time.Instant
 
 data class StandingTable(
     val code: String,
-    val ownerUserId: UserId,
+    val ownerUserId: UserId?,
     val name: String,
     val buyIn: Long,
     val maxSeats: Int,
@@ -20,7 +20,10 @@ data class StandingTable(
     val createdAt: Instant,
     val updatedAt: Instant,
     val archivedAt: Instant? = null,
-)
+) {
+    /** A table whose owner deleted their account is closed for good; its code stays reserved. */
+    val isArchived: Boolean get() = archivedAt != null || ownerUserId == null
+}
 
 data class StandingTablePatch(
     val name: String? = null,
