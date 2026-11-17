@@ -14,7 +14,6 @@ import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.junit.After
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class PostgresStandingTableRepositoryTest : DatabaseTest() {
@@ -60,7 +59,7 @@ class PostgresStandingTableRepositoryTest : DatabaseTest() {
         assertEquals(null, repo.update(table.code, StandingTablePatch(name = "Too late", updatedAt = table.updatedAt)))
         assertEquals("New name", repo.find(table.code)?.name)
     }
-    @Test fun deletingUserCascadesAndLeavingRemovesOnlyRegular() = runTest {
+    @Test fun leavingRemovesOnlyRegular() = runTest {
         val repo = PostgresStandingTableRepository(database)
         val owner = seedAuthUser(); val regular = seedAuthUser()
         val table = sampleStandingTable(owner = owner)
@@ -68,8 +67,19 @@ class PostgresStandingTableRepositoryTest : DatabaseTest() {
         repo.removeRegular(table.code, regular)
         assertEquals(0, repo.regularCount(table.code))
         assertTrue(repo.exists(table.code))
+    }
+    @Test fun deletingTheOwnerClosesTheTableButKeepsItsCodeReserved() = runTest {
+        val repo = PostgresStandingTableRepository(database)
+        val owner = seedAuthUser(); val regular = seedAuthUser()
+        val table = sampleStandingTable(owner = owner)
+        repo.create(table); repo.upsertRegular(table.code, regular, table.createdAt)
         database.blockingTransaction { TransactionManager.current().exec("DELETE FROM auth.users WHERE id = '${owner.value}'") }
-        assertFalse(repo.exists(table.code))
+        assertTrue(repo.exists(table.code))
+        val orphaned = repo.find(table.code)!!
+        assertEquals(null, orphaned.ownerUserId)
+        assertTrue(orphaned.isArchived)
+        assertEquals(emptyList(), repo.listForUser(regular))
+        assertEquals(null, repo.update(table.code, StandingTablePatch(name = "Revived", updatedAt = table.updatedAt)))
     }
     @Test fun sweepingStaleRoomsDoesNotDeleteStandingTable() = runTest {
         val repo = PostgresStandingTableRepository(database)

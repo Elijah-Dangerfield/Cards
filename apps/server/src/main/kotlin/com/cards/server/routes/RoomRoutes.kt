@@ -164,7 +164,7 @@ fun Route.roomRoutes(
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
                 val standing = standingTables.find(code)
                 measureStandingJoin(standing != null) {
-                    val open = standing?.takeIf { it.archivedAt == null }
+                    val open = standing?.takeUnless { it.isArchived }
                     if (open != null) rooms.reclaimIfAbandoned(code, DEFAULT_REAPER_GRACE)
                     var existing = rooms.find(code)
                     // A closed table still lets the people already sitting at it back in.

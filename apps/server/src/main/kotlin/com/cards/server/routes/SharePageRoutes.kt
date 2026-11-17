@@ -66,7 +66,7 @@ private fun Route.inviteRoutes(
             measureShareRequest(ShareSurface.Page) {
                 val code = call.validShareCode() ?: return@measureShareRequest call.invalidShareCode()
                 val target = resolveShareTarget(code, tables, rooms)
-                val owner = target.table?.let { profiles.findById(it.ownerUserId)?.displayName }.orEmpty()
+                val owner = target.table?.ownerUserId?.let { profiles.findById(it)?.displayName }.orEmpty()
                 call.respondText(
                     SharePageRenderer.render(code, target.table, target.room, owner, call.shareUrl(code), clock.now()),
                     ContentType.Text.Html,
@@ -106,10 +106,10 @@ private data class ShareTarget(val table: StandingTable?, val room: Room?, val o
 
 private suspend fun resolveShareTarget(code: String, tables: StandingTableRepository, rooms: RoomService): ShareTarget {
     val storedTable = tables.find(code)
-    val table = storedTable?.takeIf { it.archivedAt == null }
-    val room = if (storedTable?.archivedAt == null) rooms.findLoaded(code) else null
+    val table = storedTable?.takeUnless { it.isArchived }
+    val room = if (storedTable?.isArchived != true) rooms.findLoaded(code) else null
     val outcome = when {
-        storedTable?.archivedAt != null -> ShareOutcome.Archived
+        storedTable?.isArchived == true -> ShareOutcome.Archived
         table != null -> ShareOutcome.Standing
         room != null -> ShareOutcome.Ordinary
         else -> ShareOutcome.Unknown

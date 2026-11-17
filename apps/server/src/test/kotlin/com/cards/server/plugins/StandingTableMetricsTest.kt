@@ -75,9 +75,9 @@ class StandingTableMetricsTest {
             override suspend fun find(code: String) = listOf(table, archived).firstOrNull { it.code == code }
         }
         val rooms = InMemoryRoomService(clock)
-        rooms.createWithCode("AAAAAA", table.ownerUserId, "Host", RoomSettings.forBuyIn(5000, 2))
+        rooms.createWithCode("AAAAAA", table.ownerUserId!!, "Host", RoomSettings.forBuyIn(5000, 2))
         // The archived code still has a live sitting, but must never count as an ordinary invite.
-        rooms.createWithCode(archived.code, table.ownerUserId, "Host", RoomSettings.forBuyIn(5000, 2))
+        rooms.createWithCode(archived.code, table.ownerUserId!!, "Host", RoomSettings.forBuyIn(5000, 2))
         application {
             installRateLimits(AdminConfig(null, 30, 6))
             routing { sharePageRoutes(tables, rooms, profiles, clock) }
@@ -142,7 +142,7 @@ class StandingTableMetricsTest {
             installStatusPages()
             routing { roomRoutes(rooms, profiles, wallets, newRegistry(), InMemoryTestTableSessionService(wallets), tables, clock) }
         }
-        val host = table.ownerUserId
+        val host = table.ownerUserId!!
         val friend = UserId(UUID.randomUUID())
         val third = UserId(UUID.randomUUID())
         suspend fun join(code: String, user: UserId) = client.post("/v1/rooms/$code/join") {
@@ -169,12 +169,12 @@ class StandingTableMetricsTest {
     @Test fun materializationCountsCreatedReusedAndFailureWithoutCountingCancellation() = runBlocking {
         val rooms = InMemoryRoomService(clock)
         val settings = RoomSettings.forBuyIn(5000, 2)
-        rooms.createWithCode(table.code, table.ownerUserId, "Host", settings)
-        rooms.createWithCode(table.code, table.ownerUserId, "Host", settings)
+        rooms.createWithCode(table.code, table.ownerUserId!!, "Host", settings)
+        rooms.createWithCode(table.code, table.ownerUserId!!, "Host", settings)
         val brokenStore = object : RoomStore by NoOpRoomStore { override suspend fun save(room: Room) = error("Store unavailable") }
-        assertFailsWith<IllegalStateException> { InMemoryRoomService(clock, store = brokenStore).createWithCode("AAAAAA", table.ownerUserId, "Host", settings) }
+        assertFailsWith<IllegalStateException> { InMemoryRoomService(clock, store = brokenStore).createWithCode("AAAAAA", table.ownerUserId!!, "Host", settings) }
         val cancelledStore = object : RoomStore by NoOpRoomStore { override suspend fun save(room: Room) { throw CancellationException("Request cancelled") } }
-        assertFailsWith<CancellationException> { InMemoryRoomService(clock, store = cancelledStore).createWithCode("BBBBBB", table.ownerUserId, "Host", settings) }
+        assertFailsWith<CancellationException> { InMemoryRoomService(clock, store = cancelledStore).createWithCode("BBBBBB", table.ownerUserId!!, "Host", settings) }
         for (outcome in listOf("created", "reused", "error")) assertEquals(1L, count("cards.standing_tables.materializations", outcome))
         assertEquals(3L, points("cards.standing_tables.materializations").sumOf { it.value })
     }

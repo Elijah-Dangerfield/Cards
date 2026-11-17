@@ -51,6 +51,13 @@ class StandingTableRoutesTest : DatabaseTest() {
                     }.status
                 }
             }.awaitAll()
+            val guest = client.post("/v1/standing-tables") {
+                header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(other, anonymous = true)}")
+                contentType(ContentType.Application.Json)
+                setBody(CreateStandingTableRequest("Guest Poker", 5000, 6, 4, "20:00", "America/New_York"))
+            }
+            assertEquals(HttpStatusCode.Forbidden, guest.status)
+            assertTrue(guest.body<kotlinx.serialization.json.JsonObject>().toString().contains("account_required"))
             assertEquals(3, statuses.count { it == HttpStatusCode.Created })
             assertEquals(1, statuses.count { it == HttpStatusCode.Conflict })
             val mine = client.get("/v1/standing-tables/mine") { header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(owner)}") }.body<StandingTablesResponse>()

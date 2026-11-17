@@ -605,7 +605,7 @@ object AppConfigManifestTable : Table("app_config_manifest") {
 
 object StandingTablesTable : Table("standing_tables") {
     val code = text("code")
-    val ownerUserId = uuid("owner_user_id")
+    val ownerUserId = uuid("owner_user_id").nullable()
     val name = text("name")
     val buyIn = long("buy_in")
     val maxSeats = integer("max_seats")

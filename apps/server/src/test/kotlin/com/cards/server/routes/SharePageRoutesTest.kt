@@ -42,7 +42,7 @@ class SharePageRoutesTest {
     private val tables = object : StandingTableRepository by NoOpStandingTableRepository {
         override suspend fun find(code: String) = table.takeIf { it.code == code }
     }
-    private val profiles = ShareTestProfiles(table.ownerUserId, "<script>Owner</script>", now)
+    private val profiles = ShareTestProfiles(table.ownerUserId!!, "<script>Owner</script>", now)
 
     @Test fun escapesNamesAndSupportsBareCodeOnlyOnJoinHost() = testApplication {
         val rooms = InMemoryRoomService(clock)
@@ -73,7 +73,7 @@ class SharePageRoutesTest {
             override suspend fun find(code: String) = archived.takeIf { it.code == code }
         }
         val rooms = InMemoryRoomService(clock)
-        rooms.createWithCode(table.code, table.ownerUserId, "Host", RoomSettings.forBuyIn(5000, 6))
+        rooms.createWithCode(table.code, table.ownerUserId!!, "Host", RoomSettings.forBuyIn(5000, 6))
         application {
             installRateLimits(AdminConfig(null, 30, 6))
             routing { sharePageRoutes(archivedTables, rooms, profiles, clock) }
@@ -99,14 +99,14 @@ class SharePageRoutesTest {
 
     @Test fun savesEvidenceFetchedFromRealLocalServerWithoutExternalServices() = runBlocking {
         val rooms = InMemoryRoomService(clock)
-        rooms.createWithCode("ABCD23", table.ownerUserId, "Host", RoomSettings.forBuyIn(5000, 6))
+        rooms.createWithCode("ABCD23", table.ownerUserId!!, "Host", RoomSettings.forBuyIn(5000, 6))
         val evidenceTable = table.copy(name = "Thursday Night Poker")
         val evidenceTables = object : StandingTableRepository by NoOpStandingTableRepository {
             override suspend fun find(code: String) = evidenceTable.takeIf { it.code == code }
         }
         val server = embeddedServer(Netty, host = "127.0.0.1", port = 0) {
             installRateLimits(AdminConfig(null, 30, 6))
-            routing { sharePageRoutes(evidenceTables, rooms, ShareTestProfiles(table.ownerUserId, "Maexj", now), clock) }
+            routing { sharePageRoutes(evidenceTables, rooms, ShareTestProfiles(table.ownerUserId!!, "Maexj", now), clock) }
         }.start(wait = false)
         try {
             val port = server.engine.resolvedConnectors().first().port
