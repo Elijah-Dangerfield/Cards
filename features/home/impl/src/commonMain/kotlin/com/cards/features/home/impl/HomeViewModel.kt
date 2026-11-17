@@ -496,6 +496,7 @@ class HomeViewModel(
                 }
                 action.presentPendingBlocking()
             }
+            is HomeAction.FeatureIntroShown -> markFeatureIntroSeen(action.intro)
             is HomeAction.MarkLevelUpShown -> {
                 // Fired by the entry point the instant it navigates to the
                 // routed celebration. Advance the watermark to the level we're
@@ -568,7 +569,9 @@ class HomeViewModel(
      * The "we showed it" write follows the present: level-up advances via
      * [HomeAction.MarkLevelUpShown] at navigate-time; welcome + play-style mark
      * their watermarks here, immediately after the event is sent, so they can't
-     * re-fire.
+     * re-fire. A feature intro waits for [HomeAction.FeatureIntroShown], because
+     * Home can hold its sheet back behind another overlay and the user may leave
+     * before it appears; [featureIntrosPresented] stops a second send meanwhile.
      */
     private suspend fun HomeAction.presentPendingBlocking() {
         if (!homeResumed) return
@@ -635,7 +638,6 @@ class HomeViewModel(
             }
             is HomeNotification.Blocking.FeatureIntro -> {
                 if (!standingTablesEnabled() || !featureIntrosPresented.add(notification.intro)) return
-                appCache.update { it.copy(featureIntrosSeen = it.featureIntrosSeen + notification.intro.id) }
                 delay(DialogIntroDelay)
                 if (standingTablesEnabled()) {
                     sendEvent(HomeEvent.ShowFeatureIntro(notification.intro))
@@ -680,6 +682,12 @@ class HomeViewModel(
             }
             null -> Unit
         }
+    }
+
+    private suspend fun markFeatureIntroSeen(intro: FeatureIntro) {
+        if (intro.id in appCache.get().featureIntrosSeen) return
+        appCache.update { it.copy(featureIntrosSeen = it.featureIntrosSeen + intro.id) }
+        homeLogger.logEvent("feature_intro.shown", "feature" to intro.id)
     }
 
     private suspend fun HomeAction.applyProfile(profile: Profile) {
@@ -994,6 +1002,7 @@ sealed interface HomeAction {
      *  is settled, present the single highest-priority blocking notification. */
     data class EvaluateNotifications(val snapshot: HomeNotificationSnapshot) : HomeAction
     data object MarkLevelUpShown : HomeAction
+    data class FeatureIntroShown(val intro: FeatureIntro) : HomeAction
 
     /** The MP achievement celebration was dismissed — drain the queue. */
     data object MarkAchievementCelebrationShown : HomeAction

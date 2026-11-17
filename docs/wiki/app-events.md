@@ -126,7 +126,7 @@ These events carry no table codes, names or invite URLs.
 
 | Event | Attributes | Fires |
 | --- | --- | --- |
-| `feature_intro.shown` | `feature` (standing_tables) | The Home notification manager presents the intro. |
+| `feature_intro.shown` | `feature` (standing_tables) | The intro sheet is on screen for the first time, which is also when it is marked seen. An intro held behind another overlay does not fire until it appears. |
 | `feature_intro.acted` | `feature` (standing_tables), `action` (primary/dismiss) | The player chooses the primary action or dismisses the intro, including sheet dismissal. |
 
 ## Engagement & session shape
