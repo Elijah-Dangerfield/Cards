@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
+import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.rooms.MatchmakingCandidate
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomMember
@@ -198,8 +200,18 @@ internal fun RoomDto.toDomain(): Room = Room(
     visibility = visibility.toDomain(),
     feltProductId = feltProductId,
     cardBackProductId = cardBackProductId,
-    standingTable = standingTable?.toDomain(),
+    standingTable = standingTable?.toDomainOrNull(),
 )
+
+private var reportedUnreadableSummary = false
+
+private fun StandingTableSummaryDto.toDomainOrNull() = Catching { toDomain() }
+    .onFailure { error ->
+        if (reportedUnreadableSummary) return@onFailure
+        reportedUnreadableSummary = true
+        KLog.withTag("Rooms").w(error) { "Dropping unreadable standing-table summary" }
+    }
+    .getOrNull()
 
 internal fun MatchmakingCandidateDto.toDomain(): MatchmakingCandidate = MatchmakingCandidate(
     room = room.toDomain(),

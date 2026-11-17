@@ -35,6 +35,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.AfterTest
 import kotlin.test.assertFalse
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.core.logging.LogLevel
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -71,6 +72,15 @@ class RoomRepositoryImplTest : CoroutineTest() {
         val entry = logs.events("room.joined").single()
         assertEquals(false, entry.context.extras["is_standing_table"])
         assertFalse(entry.context.extras.keys.any { it in setOf("code", "name", "user_id") })
+    }
+
+    @Test
+    fun malformedStandingSummaryDropsToOrdinaryRoomInsteadOfFailingTheJoin() = runUnitTest {
+        val summary = """"standingTable":{"name":"Private friends","weekday":4,"localTime":"25:99","timeZone":"Mars/Olympus","nextStartsAt":"soon"},"""
+        val response = JOIN_RESPONSE_JSON_FRESH.replace("\"members\":", summary + "\"members\":")
+        val success = assertIs<JoinRoomOutcome.Success>(newRepo(MockEngine { respondJson(HttpStatusCode.OK, response) }).joinRoom("ABC123"))
+        assertEquals(null, success.room.standingTable)
+        assertEquals(1, logs.entries.count { it.level == LogLevel.Warn })
     }
 
     @Test
