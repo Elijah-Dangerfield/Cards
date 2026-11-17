@@ -217,6 +217,13 @@ interface RoomService {
     suspend fun refreshStandingTable(code: String) = Unit
 
     /**
+     * Drops [code]'s room when nobody has come back for it within [grace], so a
+     * reused standing-table code opens fresh instead of reviving last week's
+     * seats. True when a room was reclaimed.
+     */
+    suspend fun reclaimIfAbandoned(code: String, grace: Duration): Boolean = false
+
+    /**
      * Idempotent join. If the user is already a member, returns
      * [JoinResult.AlreadyJoined] with the existing seat preserved.
      * Otherwise drops them in the next free seat.

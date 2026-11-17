@@ -92,6 +92,7 @@ class InMemoryRoomService(
 ) : RoomService {
 
     private val log = org.slf4j.LoggerFactory.getLogger("RoomService")
+    private val startedAt = clock.now()
 
     private val mutex = Mutex()
     /** All live rooms by code. Each value also owns its own flow for observers. */
@@ -208,6 +209,26 @@ class InMemoryRoomService(
                 state.update(state.room.copy(standingTable = standingTables.find(code)))
             }
         }
+    }
+
+    override suspend fun reclaimIfAbandoned(code: String, grace: Duration): Boolean {
+        val reclaimed = mutex.withLock {
+            val wasLoaded = rooms[code] != null
+            val room = hydrateLocked(code)?.room ?: return@withLock null
+            val cutoff = clock.now() - grace
+            val humans = room.members.filterNot { it.isBot }
+            val nobodyReturnedAfterRestart = !wasLoaded && startedAt <= cutoff
+            val everyoneLeftLongAgo = humans.all { member -> member.disconnectedAt?.let { it <= cutoff } == true }
+            if (humans.any { it.isConnected } || !(nobodyReturnedAfterRestart || everyoneLeftLongAgo)) {
+                return@withLock null
+            }
+            rooms.remove(code)
+            forget(code)
+            room
+        } ?: return false
+        log.info("Room $code reclaimed: no human returned within $grace, ${reclaimed.members.size} stale seats dropped")
+        roomClosedListener.onRoomClosed(reclaimed)
+        return true
     }
 
     override suspend fun join(

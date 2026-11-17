@@ -175,6 +175,7 @@ fun Route.roomRoutes(
                             problemEnvelope("standing_table_closed", "This standing table was closed by its host."))
                         return@measureStandingJoin StandingJoinOutcome.Archived
                     }
+                    if (standing != null) rooms.reclaimIfAbandoned(code, DEFAULT_REAPER_GRACE)
                     var existing = rooms.find(code)
                     if (existing == null && standing != null) {
                         val balance = wallets.findOrCreate(userId).balance

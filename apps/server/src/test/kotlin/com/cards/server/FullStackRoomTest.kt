@@ -117,6 +117,41 @@ class FullStackRoomTest : DatabaseTest() {
     }
 
     @Test
+    fun reopeningAStandingTableDropsTheSittingThatOutlivedItsProcess() = runTest {
+        val owner = seedAuthUser(); val ghost = seedAuthUser(); val joiner = seedAuthUser()
+        val component = ServerComponent::class.create(database, TEST_SUPABASE, TEST_BILLING)
+        testApplication {
+            application {
+                installApp(component, JwtVerification.Static(RoomSocketTestAuth.verifier),
+                    AdminConfig(apiToken = null, orphanAnonTtlDays = 30, staleRoomTtlHours = 6), AccessControlConfig(appealUrl = null))
+            }
+            val client = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            val table = client.post("/v1/standing-tables") {
+                header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(owner)}")
+                contentType(ContentType.Application.Json)
+                setBody(com.dangerfield.cards.server.routes.CreateStandingTableRequest("Thursday Poker", 5000, 4, 4, "20:00", "America/New_York"))
+            }.body<com.dangerfield.cards.server.routes.StandingTableDto>()
+            val lastWeek = kotlin.time.Clock.System.now() - kotlin.time.Duration.parse("7d")
+            com.dangerfield.cards.server.data.PostgresRoomStore(database).save(
+                com.dangerfield.cards.server.domain.Room(
+                    code = table.code, hostUserId = ghost, createdAt = lastWeek, maxSeats = 4,
+                    status = com.dangerfield.cards.server.domain.RoomStatus.Playing,
+                    members = listOf(com.dangerfield.cards.server.domain.RoomMember(
+                        ghost, "Ghost", 0, lastWeek, isConnected = false, disconnectedAt = lastWeek)),
+                    buyIn = 5000,
+                ),
+            )
+
+            val reopened = client.post("/v1/rooms/${table.code}/join") { header(HttpHeaders.Authorization, "Bearer ${RoomSocketTestAuth.jwt(joiner)}") }
+
+            assertEquals(HttpStatusCode.OK, reopened.status)
+            val room = reopened.body<com.dangerfield.cards.server.routes.JoinRoomResponse>().room
+            assertEquals(listOf(joiner.value.toString()), room.members.map { it.userId })
+            assertEquals(joiner.value.toString(), room.hostUserId)
+        }
+    }
+
+    @Test
     fun createJoinStart_throughRealComponentAndDb_persistsSessionToPostgres() = runTest {
         val host = seedAuthUser()
         val joiner = seedAuthUser()
