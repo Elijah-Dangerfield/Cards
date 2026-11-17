@@ -99,7 +99,7 @@ internal fun StandingTable.toDto(
     regularCount = regulars,
     live = room?.let {
         StandingTableLiveDto(
-            seatedHumans = it.members.count { member -> !member.isBot && member.isConnected },
+            seatedHumans = it.connectedHumanCount,
             status = if (it.status == RoomStatus.Playing) "playing" else "lobby",
         )
     },

@@ -69,6 +69,7 @@ data class Room(
 
     val seatCount: Int get() = members.size
     val isFull: Boolean get() = seatCount >= maxSeats
+    val connectedHumanCount: Int get() = members.count { !it.isBot && it.isConnected }
     fun memberFor(userId: UserId): RoomMember? = members.firstOrNull { it.userId == userId }
 
     /**

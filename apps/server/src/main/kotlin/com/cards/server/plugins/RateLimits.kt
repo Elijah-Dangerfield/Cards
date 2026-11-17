@@ -52,7 +52,9 @@ fun Application.installRateLimits(adminConfig: AdminConfig) {
         }
 
         register(RateLimitName(SHARE_PAGE_LIMIT)) {
-            rateLimiter(limit = 60, refillPeriod = 1.minutes)
+            // Chat apps fetch link previews from a handful of shared crawler IPs, so
+            // one busy group chat can look like a single heavy client.
+            rateLimiter(limit = 600, refillPeriod = 1.minutes)
             requestKey { call -> call.clientIp() }
         }
 
