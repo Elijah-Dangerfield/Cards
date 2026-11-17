@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.telemetry.impl
 
 import android.app.ActivityManager
+import android.app.ActivityManager.RunningAppProcessInfo
 import android.app.ApplicationExitInfo
 import android.content.Context
 import android.os.Build
@@ -48,7 +49,7 @@ class AndroidPreviousExitProvider(
     private val record: ExitRecord? by lazy { readLatestExitRecord(context) }
 
     override fun previousExit(): PreviousExit =
-        record?.let { previousExitForReason(it.reason) } ?: PreviousExit.Unknown
+        record?.let { previousExitForReason(it.reason, it.importance) } ?: PreviousExit.Unknown
 
     override fun previousExitDetail(): PreviousExitDetail? = record?.let {
         PreviousExitDetail(
@@ -107,14 +108,15 @@ private object ExitInfoReader {
  * non-constant member of `ApplicationExitInfo` would reintroduce CARDS-CK in a
  * place the structural test does not watch.
  */
-internal fun previousExitForReason(reason: Int): PreviousExit = when (reason) {
+internal fun previousExitForReason(reason: Int, importance: Int): PreviousExit = when (reason) {
     ApplicationExitInfo.REASON_CRASH,
     ApplicationExitInfo.REASON_CRASH_NATIVE,
     -> PreviousExit.Crash
 
     ApplicationExitInfo.REASON_ANR -> PreviousExit.Anr
 
-    ApplicationExitInfo.REASON_LOW_MEMORY -> PreviousExit.Oom
+    ApplicationExitInfo.REASON_LOW_MEMORY ->
+        if (importance > RunningAppProcessInfo.IMPORTANCE_PERCEPTIBLE) PreviousExit.BackgroundKill else PreviousExit.Oom
 
     // On API 30+ fatal native signals report REASON_CRASH_NATIVE and lmkd
     // kills report REASON_LOW_MEMORY, so a bare SIGNALED is the user or the

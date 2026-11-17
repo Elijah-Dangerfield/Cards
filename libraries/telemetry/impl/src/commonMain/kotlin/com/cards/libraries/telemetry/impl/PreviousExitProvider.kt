@@ -10,6 +10,13 @@ enum class PreviousExit(val value: String) {
     Crash("crash"),
     Anr("anr"),
     Oom("oom"),
+
+    /**
+     * The OS reclaimed memory from the app while it sat in the background.
+     * The player never saw it, so it is not a crash and crash-free rates must
+     * not count it (Android lmkd kills of a cached process).
+     */
+    BackgroundKill("background_kill"),
     Unknown("unknown"),
 }
 
