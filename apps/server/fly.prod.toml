@@ -5,7 +5,7 @@
 # project it points at (set via secrets, never in this file).
 #
 # Workflow:
-#   - Deploy:    fly deploy --config apps/server/fly.prod.toml
+#   - Deploy:    fly deploy --ha=false --config apps/server/fly.prod.toml
 #   - Secrets:   fly secrets set KEY=VALUE -a cards-server-prod
 #   - Live logs: fly logs -a cards-server-prod
 #   - Console:   fly ssh console -a cards-server-prod
