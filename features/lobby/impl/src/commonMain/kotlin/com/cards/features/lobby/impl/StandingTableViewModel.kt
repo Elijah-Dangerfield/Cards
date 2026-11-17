@@ -1,13 +1,11 @@
 package com.dangerfield.cards.features.lobby.impl
 
-import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.logEvent
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.rooms.StandingTable
 import com.dangerfield.cards.libraries.rooms.StandingTableRepository
 import com.dangerfield.cards.libraries.rooms.StandingTablesEnabled
-import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 
@@ -19,7 +17,6 @@ class StandingTableViewModel(
     private val enabled: StandingTablesEnabled,
 ) : SEAViewModel<StandingTableState, StandingTableEvent, StandingTableAction>(StandingTableState(justCreated = justCreated)) {
     private var countedView = false
-    init { if (enabled()) viewModelScope.launch { takeAction(StandingTableAction.Refresh) } }
 
     override suspend fun handleAction(action: StandingTableAction) {
         if (!enabled()) return

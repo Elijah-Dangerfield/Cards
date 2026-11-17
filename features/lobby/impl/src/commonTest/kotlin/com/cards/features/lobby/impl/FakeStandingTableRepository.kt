@@ -21,6 +21,7 @@ internal class FakeStandingTableRepository(
     var leaveOutcome: Catching<Unit> = Catching.success(Unit)
     var refreshOutcome: Catching<Unit> = Catching.success(Unit)
     var refreshCount = 0
+    var getCalls = 0
     var lastDraft: StandingTableDraft? = null
     var archivedCode: String? = null
     var leftCode: String? = null
@@ -37,8 +38,10 @@ internal class FakeStandingTableRepository(
         return createOutcome
     }
 
-    override suspend fun get(code: String): Catching<StandingTable> =
-        getOutcome ?: Catching { mine.value.first { it.code == code } }
+    override suspend fun get(code: String): Catching<StandingTable> {
+        getCalls++
+        return getOutcome ?: Catching { mine.value.first { it.code == code } }
+    }
 
     override suspend fun update(code: String, draft: StandingTableDraft): Catching<StandingTable> {
         lastDraft = draft
