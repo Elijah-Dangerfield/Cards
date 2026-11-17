@@ -33,6 +33,11 @@ class RoomCodeAllocatorTest {
         val codes = List(2) { async { allocator.withCode { code -> yield(); used.add(code); code } } }.awaitAll()
         assertEquals(listOf("AAAAAA", "BBBBBB"), codes)
     }
+    @Test fun remembersOnlyARecentWindowOfAllocatedCodes() = runTest {
+        val allocator = DefaultRoomCodeAllocator(Random(7), NoOpRoomStore, NoOpStandingTableRepository)
+        repeat(DefaultRoomCodeAllocator.REMEMBERED_CODE_LIMIT + 50) { allocator.withCode { it } }
+        assertEquals(DefaultRoomCodeAllocator.REMEMBERED_CODE_LIMIT, allocator.rememberedCodeCount)
+    }
     @Test fun aFailedUniquenessCheckFailsTheCreateInsteadOfHandingOutAnUncheckedCode() = runTest {
         val store = object : RoomStore by NoOpRoomStore { override suspend fun codeTaken(code: String) = error("Database unavailable") }
         var created = false
