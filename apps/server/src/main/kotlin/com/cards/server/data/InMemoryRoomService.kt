@@ -191,7 +191,7 @@ class InMemoryRoomService(
             val host = RoomMember(hostUserId, hostName, 0, now, false, now,
                 sanitizeMemberAvatar(hostAvatarEmoji), hostAvatarBackgroundColor)
             val room = Room(code, hostUserId, now, settings.maxSeats, RoomStatus.Lobby, listOf(host),
-                settings.startingStack, visibility, feltProductId, cardBackProductId, standingTables.find(code))
+                settings.startingStack, visibility, feltProductId, cardBackProductId, findStandingTable(code))
             store.save(room)
             rooms[code] = RoomState(room)
             ServerMetrics.recordStandingMaterialization(StandingMaterializationOutcome.Created)
@@ -205,9 +205,11 @@ class InMemoryRoomService(
 
     override suspend fun refreshStandingTable(code: String) {
         mutex.withLock {
-            rooms[code]?.let { state ->
-                state.update(state.room.copy(standingTable = standingTables.find(code)))
-            }
+            val state = rooms[code] ?: return@withLock
+            val table = Catching { standingTables.find(code) }
+                .onFailure { log.warn("Room $code standing table refresh failed", it) }
+                .getOrNull() ?: return@withLock
+            state.update(state.room.copy(standingTable = table))
         }
     }
 
@@ -905,11 +907,17 @@ class InMemoryRoomService(
         val loaded = Catching { store.load(code) }
             .onFailure { log.warn("Room $code hydrate failed", it) }
             .getOrNull() ?: return null
-        val state = RoomState(room = loaded.copy(standingTable = standingTables.find(code)))
+        val state = RoomState(room = loaded.copy(standingTable = findStandingTable(code)))
         rooms[code] = state
         log.info("Room $code hydrated from durable store after a cache miss")
         return state
     }
+
+    /** Best-effort: a room without its standing summary still plays; the next refresh restores it. */
+    private suspend fun findStandingTable(code: String) =
+        Catching { standingTables.find(code) }
+            .onFailure { log.warn("Room $code standing table lookup failed", it) }
+            .getOrNull()
 
     /**
      * The member to promote to host when the current host departs (leaves, is

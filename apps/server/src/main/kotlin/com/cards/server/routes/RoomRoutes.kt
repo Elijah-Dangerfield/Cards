@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.libraries.bots.BotDifficulty
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.AddBotResult
 import com.dangerfield.cards.server.domain.CashOutResult
@@ -32,6 +33,7 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
+import org.slf4j.LoggerFactory
 
 /**
  * HTTP entry points for the multiplayer room lifecycle. Live state +
@@ -215,12 +217,12 @@ fun Route.roomRoutes(
                         )
                     ) {
                         is JoinResult.Success -> {
-                            if (standing != null) standingTables.upsertRegular(code, userId, clock.now())
+                            if (standing != null) standingTables.recordRegular(code, userId, clock)
                             call.respond(HttpStatusCode.OK, JoinRoomResponse(room = outcome.room.toDto(clock.now()), alreadyJoined = false))
                             StandingJoinOutcome.Joined
                         }
                         is JoinResult.AlreadyJoined -> {
-                            if (standing != null) standingTables.upsertRegular(code, userId, clock.now())
+                            if (standing != null) standingTables.recordRegular(code, userId, clock)
                             call.respond(HttpStatusCode.OK, JoinRoomResponse(room = outcome.room.toDto(clock.now()), alreadyJoined = true))
                             StandingJoinOutcome.AlreadyJoined
                         }
@@ -356,6 +358,11 @@ fun Route.roomRoutes(
             }
         }
     }
+}
+
+private suspend fun StandingTableRepository.recordRegular(code: String, userId: UserId, clock: Clock) {
+    Catching { upsertRegular(code, userId, clock.now()) }
+        .onFailure { LoggerFactory.getLogger("RoomRoutes").warn("Room $code: recording regular $userId failed", it) }
 }
 
 /**

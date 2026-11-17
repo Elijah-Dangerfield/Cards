@@ -156,12 +156,14 @@ class StandingTableMetricsTest {
         assertEquals(HttpStatusCode.NotFound, join(table.code, third).status)
         archived = false
         failRegularWrite = true
+        assertEquals(HttpStatusCode.OK, join(table.code, host).status)
+        profiles.unavailable = true
         assertEquals(HttpStatusCode.InternalServerError, join(table.code, host).status)
+        profiles.unavailable = false
         assertEquals(HttpStatusCode.NotFound, join("ZZZZZZ", third).status)
-        for (outcome in listOf("already_joined", "joined", "full", "insufficient_balance", "archived", "error")) {
-            assertEquals(1L, count("cards.standing_tables.join.requests", outcome))
-        }
-        assertEquals(6L, points("cards.standing_tables.join.requests").sumOf { it.value })
+        val expected = mapOf("already_joined" to 2L, "joined" to 1L, "full" to 1L, "insufficient_balance" to 1L, "archived" to 1L, "error" to 1L)
+        for ((outcome, total) in expected) assertEquals(total, count("cards.standing_tables.join.requests", outcome), outcome)
+        assertEquals(7L, points("cards.standing_tables.join.requests").sumOf { it.value })
         assertEquals(1L, count("cards.standing_tables.materializations", "created"))
         assertTrue(points("cards.standing_tables.join.requests").all { it.attributes.asMap().size == 1 })
     }
@@ -190,8 +192,10 @@ class StandingTableMetricsTest {
 }
 
 private class MetricsProfiles(private val now: Instant) : ProfileRepository {
+    var unavailable = false
     override suspend fun findById(userId: UserId) = Profile(userId, "Host", "", null, now, now)
-    override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform) = findById(userId)
+    override suspend fun findOrCreate(userId: UserId, signupPlatform: ClientContext.Platform) =
+        findById(userId).also { check(!unavailable) { "Profiles unavailable" } }
     override suspend fun update(userId: UserId, displayName: String?, avatarEmoji: String?, avatarBackgroundColor: String?, clearAvatarBackgroundColor: Boolean): UpdateProfileOutcome = error("Not used")
     override suspend fun delete(userId: UserId) = error("Not used")
     override suspend fun touchInstallId(userId: UserId, installId: UUID): UUID? = error("Not used")

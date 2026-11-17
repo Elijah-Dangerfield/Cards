@@ -109,6 +109,23 @@ class InMemoryRoomServiceTest {
     }
 
     @Test
+    fun aStandingTableLookupFailureDoesNotBreakOpeningJoiningOrRefreshingARoom() = runTest {
+        val store = FakeRoomStore()
+        val unavailable = object : com.dangerfield.cards.server.domain.StandingTableRepository by
+            com.dangerfield.cards.server.domain.NoOpStandingTableRepository {
+            override suspend fun find(code: String) = error("Standing tables unavailable")
+        }
+        val opened = InMemoryRoomService(FixedClock(), Random(0L), store, standingTables = unavailable)
+            .createWithCode("K7M2QX", host, "Host", com.dangerfield.cards.libraries.gameplay.RoomSettings.forBuyIn(5000, 4))
+        assertNull(opened.standingTable)
+
+        val afterRestart = InMemoryRoomService(FixedClock(), Random(1L), store, standingTables = unavailable)
+        assertIs<JoinResult.Success>(afterRestart.join("K7M2QX", alice, "Alice"))
+        afterRestart.refreshStandingTable("K7M2QX")
+        assertEquals(2, assertNotNull(afterRestart.find("K7M2QX")).members.size)
+    }
+
+    @Test
     fun reclaimIfAbandoned_dropsAStalePersistedRoom_andClosesItsSession() = runTest {
         val store = FakeRoomStore()
         val clock = AdvanceableClock()
