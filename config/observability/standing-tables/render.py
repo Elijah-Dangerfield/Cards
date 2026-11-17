@@ -38,12 +38,12 @@ def validate(bundle, env):
         if not rule['isPaused'] or rule['noDataState'] != 'OK' or rule['execErrState'] != 'Error':
             raise ValueError('Rules must remain paused, ignore quiet traffic and preserve execution errors')
         expr = rule['data'][0]['model']['expr']
-        if '>= bool ' not in expr or '> bool ' not in expr:
-            raise ValueError('Every rule requires a traffic gate and error threshold')
-        if 'or vector(0)' in expr.partition(' / ')[2]:
-            raise ValueError('Missing traffic must not be replaced by a healthy zero')
-        if ' or (0 * ' not in expr or ' > 0)' not in expr.partition(' / ')[2]:
-            raise ValueError('Rules require bounded error fallback and a positive denominator')
+        if not re.search(r'\) >= bool [1-9]\d*$', expr):
+            raise ValueError('Every rule must be a count threshold')
+        if ' / ' in expr or '[6h]' not in expr or rule['data'][0]['relativeTimeRange']['from'] != 21600:
+            raise ValueError('Rules must count over a 6h window, not a ratio')
+        if not expr.startswith('(sum(') or ' or vector(0)) >= bool' not in expr:
+            raise ValueError('Absent series must count as zero failures')
     if TOKEN.search(json.dumps(bundle)):
         raise ValueError('Unbound template token')
 
