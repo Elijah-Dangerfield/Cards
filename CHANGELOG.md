@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.9.1](https://github.com/Elijah-Dangerfield/Cards/compare/v0.9.0...v0.9.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **calendar:** repeat Android standing tables on the right weekday ([9ae388d](https://github.com/Elijah-Dangerfield/Cards/commit/9ae388de69027383baba921fd6d31dab61bb5cc2))
+* **home:** mark the feature intro seen only once it's on screen ([7d89dc3](https://github.com/Elijah-Dangerfield/Cards/commit/7d89dc352ef87ecb74bef08eeda951aa00c4f81d))
+* **ios:** stop Add to calendar hanging when the editor can't present ([e5ea26e](https://github.com/Elijah-Dangerfield/Cards/commit/e5ea26ed3f4d079d7a333a21560aaa6de95a3935))
+* **lobby:** keep standing-table share and calendar off the event loop ([698ad01](https://github.com/Elijah-Dangerfield/Cards/commit/698ad017d676506c2c69200f9efa390bb61eb048))
+* **lobby:** load the standing-table detail once on open ([91aefec](https://github.com/Elijah-Dangerfield/Cards/commit/91aefecd37f7bf5b8c3cc6ba5a3c0be1fb5faffd))
+* **rooms:** drop an unreadable standing-table summary instead of the room ([597d8be](https://github.com/Elijah-Dangerfield/Cards/commit/597d8beededc4a7b835b4cb54406535f48606b47))
+* **rooms:** report unexpected standing-table failures as unknown ([5f0305e](https://github.com/Elijah-Dangerfield/Cards/commit/5f0305e25d8819af15bf02c39aa41174b17a3527))
+* **server:** bound the room code allocator's memory of recent codes ([de0f749](https://github.com/Elijah-Dangerfield/Cards/commit/de0f749aabd401fb9fa754c5034699c7e0a4d8f1))
+* **server:** harden invite share pages for crawlers and closed tables ([e55d0c8](https://github.com/Elijah-Dangerfield/Cards/commit/e55d0c892cbe07770d59b1f3da8ebfc8918d9d41))
+* **server:** keep a standing table's code reserved after its owner leaves ([8dee733](https://github.com/Elijah-Dangerfield/Cards/commit/8dee733f335e014fad9c8775431d1828b41b0ba0))
+* **server:** keep joins working through a standing-table lookup blip ([b985b9e](https://github.com/Elijah-Dangerfield/Cards/commit/b985b9e7f82ad96a0c402b19091d6094b2d7bb6f))
+* **server:** let seated players back into a closed standing table ([de2a98b](https://github.com/Elijah-Dangerfield/Cards/commit/de2a98b68b8777c7a31196010477b5949fb327d3))
+* **server:** reclaim an abandoned room before reopening a standing table ([9dd48b1](https://github.com/Elijah-Dangerfield/Cards/commit/9dd48b119527c59dd8c1d701aafd63f4b53f5939))
+* **server:** refresh the live room's table summary on archive ([62f757c](https://github.com/Elijah-Dangerfield/Cards/commit/62f757c8116f665489064f0fea2fa9baad4add8f))
+* **server:** reject hidden formatting characters in standing table names ([ceb4820](https://github.com/Elijah-Dangerfield/Cards/commit/ceb48205ee0de95dbed16f43f1481366ba457c25))
+* **telemetry:** stop counting background memory reclaims as crashes ([6c39a5c](https://github.com/Elijah-Dangerfield/Cards/commit/6c39a5ced32aa0c66c6730f70edb9652479c52bb))
+
 ## [0.9.0](https://github.com/Elijah-Dangerfield/Cards/compare/v0.8.0...v0.9.0) (2026-11-15)
 
 
