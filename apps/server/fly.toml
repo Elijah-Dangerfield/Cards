@@ -4,7 +4,7 @@
 # apply to our setup since Postgres lives on Supabase, not Fly).
 #
 # Workflow:
-#   - Local first-time deploy:  fly deploy --config apps/server/fly.toml
+#   - Local first-time deploy:  fly deploy --ha=false --config apps/server/fly.toml
 #   - Secrets:                  fly secrets set KEY=VALUE -a cards-server-dev
 #   - Live logs:                fly logs -a cards-server-dev
 #   - Console (running VM):     fly ssh console -a cards-server-dev

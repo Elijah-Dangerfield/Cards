@@ -1,6 +1,6 @@
 # Standing tables health
 
-Reusable templates for the [Standing Tables Health dashboard](https://cards.grafana.net/d/dc-standing-tables): 23 panels and five warning rules per environment. Rendering writes local JSON only. Generated rules are paused; live activation, evidence and rollback history belong in the rollout ledger, separate from these templates.
+Reusable templates for the [Standing Tables Health dashboard](https://cards.grafana.net/d/dc-standing-tables): 25 panels (with an `env` switcher) and five warning rules per environment. Rendering writes local JSON only. Generated rules are paused; live activation, evidence and rollback history belong in the rollout ledger, separate from these templates.
 
 ## Render without contacting Grafana
 
@@ -14,7 +14,7 @@ Find the Loki and Prometheus datasource UIDs in [Grafana data sources](https://c
 
 The generated `dashboard.json` is Grafana dashboard import JSON. `alerts.json` is Grafana Alerting file-provisioning JSON (`apiVersion: 1`), with all rules paused, org ID 1 and the existing Engineering folder (`downcard-engineering`). Alert UIDs, titles and groups include the selected environment, so dev and prod imports remain distinct. Verify the destination org and folder before provisioning. `queries.json` provides every panel's source and expression for review. No script in this bundle uploads files or changes alert state.
 
-`dashboard.json` is fixed to the selected environment and always uses UID `dc-standing-tables`. Importing it replaces the live version 3 dashboard and its environment switcher. Export the live dashboard first; do not import both environment renders as separate dashboards under that same UID.
+`dashboard.json` always uses UID `dc-standing-tables` and carries the `env` variable (prod default, dev) that the live dashboard has. Its queries use `$env`, so one import serves both environments; the environment and server selector you render with only affect `alerts.json`. Importing replaces the live dashboard, so export the live one first.
 
 ## What the queries count
 
@@ -40,17 +40,21 @@ All three names and their bounded labels were confirmed in live dev ingestion. A
 
 ## Rules and readiness
 
-All rules evaluate rolling one-hour windows every minute and require ten minutes above the threshold. Client operation failures count network/server/decode only; expected invalid, cap/conflict, offline, auth, rate-limited, other HTTP and not-found outcomes stay visible on charts. Server rules count `error` only, excluding full tables, insufficient balance, archived tables and unknown links.
+Traffic is a handful of operations a week, so ratio rules with a minimum-request gate could never fire. Every rule is a count over a rolling 6 hours: it fires when the number of failures reaches the threshold and persists five minutes. Client rules count `outcome="failure"` with reason `network`, `server`, `decode` or `unknown` (the client reports unexpected exceptions as `unknown`). Expected invalid, cap/conflict, offline, auth, rate-limited, other HTTP and not-found outcomes stay visible on charts but never alert. Server rules count `outcome="error"` only, excluding full tables, insufficient balance, archived tables and unknown links.
 
-| Rule | Error threshold | Minimum completed requests in 1h |
+| Rule | Fires at (rolling 6h) | Dashboard panel |
 | --- | --- | --- |
-| Client operations | over 20% | 20 |
-| Creation | over 20% | 10 |
-| Share handlers | over 10% | 20 |
-| Standing joins | over 10% | 10 |
-| Materialization | over 10% | 10 |
+| Client operations | 3 or more outage failures | 24, Client outage failures, 6h |
+| Creation | 2 or more outage failures on `create` | 24 |
+| Share handlers | 3 or more `error` outcomes | 25, Standing server errors, 6h |
+| Standing joins | 2 or more `error` outcomes | 25 |
+| Materialization | 2 or more `error` outcomes | 25 |
 
-Absent or zero denominators remain absent in query results and dashboard panels. Ratio alerts use `noDataState=OK` because quiet or dark-feature traffic is legitimate; `execErrState=Error` preserves query execution failures. This avoids false DatasourceNoData notifications without changing notification policies. Positive but low traffic is suppressed by the traffic gate. Read traffic beside percentages and verify ingestion separately. The existing A7 heartbeat only checks for globally absent server HTTP metrics; it does not prove per-environment standing-table counters or client Loki delivery.
+Panels 24 and 25 use the same filters and window as the rules, so what a rule counted is what its linked panel shows. Server counts use `round(increase(...))` because `increase` extrapolates and the first increment of a new counter series is not counted; one error right after a deploy can therefore be missed.
+
+**Tuning as traffic grows.** Thresholds are the number after `>= bool` in each rule's expression in `alerts.template.json`, and the window is `[6h]` plus the query's `relativeTimeRange.from` (21600 seconds); keep the two in step. At roughly 12 operations a week, 3 failures in 6h is already a strong signal. Once volume is in the hundreds a week, raise the thresholds, shorten the window (for example 1h, `from: 3600`) and consider returning to a ratio rule with a minimum-request gate, since a fixed count would then fire on ordinary background failure. Update `render.py` validation and `test_render.py` if you change the rule shape.
+
+Absent series count as zero failures (`or vector(0)`), and rules use `noDataState=OK` because quiet or dark-feature traffic is legitimate; `execErrState=Error` preserves query execution failures. This avoids false DatasourceNoData notifications without changing notification policies. Dashboard percentage panels still return no data when traffic is absent, so read traffic beside them, and verify ingestion separately. The existing A7 heartbeat only checks for globally absent server HTTP metrics; it does not prove per-environment standing-table counters or client Loki delivery.
 
 Before activation, verify the metric names and environment selector in Explore, compare controlled dev actions with their emitted outcomes, and confirm the rendered Grafana queries and alert previews. Import rules paused, check notification routing, then explicitly enable only after ingestion is verified. No-data, alert delivery, live query execution and feature rollout remain unverified by local rendering.
 

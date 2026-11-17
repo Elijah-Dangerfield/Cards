@@ -36,6 +36,36 @@ class RenderTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate(artifacts, 'dev')
 
+    def test_alerts_are_count_based_over_six_hours(self):
+        rules = bundle('prod')[1]['groups'][0]['rules']
+        for rule in rules:
+            query = rule['data'][0]
+            self.assertEqual(21600, query['relativeTimeRange']['from'])
+            self.assertIn('[6h]', query['model']['expr'])
+            self.assertEqual('OK', rule['noDataState'])
+        client = rules[0]['data'][0]['model']['expr']
+        self.assertIn('network|server|decode|unknown', client)
+
+    def test_alert_panel_links_exist_on_dashboard(self):
+        dashboard, alerts, _ = bundle('dev')
+        panels = {str(panel['id']) for panel in dashboard['panels']}
+        for rule in alerts['groups'][0]['rules']:
+            self.assertIn(rule['annotations']['__panelId__'], panels)
+
+    def test_dashboard_uses_env_variable_not_fixed_environment(self):
+        dashboard = bundle('dev')[0]
+        self.assertEqual(['env'], [v['name'] for v in dashboard['templating']['list']])
+        text = json.dumps(dashboard)
+        self.assertIn('${env}', text)
+        self.assertNotIn('deployment_environment=\\"dev\\"', text)
+
+    def test_ratio_rule_is_rejected(self):
+        artifacts = bundle('dev')
+        rule = artifacts[1]['groups'][0]['rules'][0]
+        rule['data'][0]['model']['expr'] += ' / 2'
+        with self.assertRaises(ValueError):
+            validate(artifacts, 'dev')
+
 
 if __name__ == '__main__':
     unittest.main()
