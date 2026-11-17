@@ -3,12 +3,6 @@ package com.dangerfield.cards.features.lobby.impl
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import com.dangerfield.cards.features.lobby.RoomInvite
-import com.dangerfield.cards.libraries.ui.components.room.weekdayNameResource
-import com.dangerfield.cards.libraries.ui.components.room.formatStandingTime
-import com.dangerfield.cards.libraries.core.logging.KLog
-import com.dangerfield.cards.libraries.core.logging.logEvent
-import cards.libraries.resources.generated.resources.ui_schedule_am
-import cards.libraries.resources.generated.resources.ui_schedule_pm
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -227,12 +221,15 @@ class LobbyFeatureEntryPoint(
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
                 onShareInvite = { message ->
-                    val table = state.room?.standingTable.takeIf { standingTablesEnabled() }
-                    if (table == null) router.shareText(message) else scope.launch {
-                        val weekday = getString(weekdayNameResource(table.weekday))
-                        val time = formatStandingTime(table.localTime, getString(Res.string.ui_schedule_am), getString(Res.string.ui_schedule_pm))
-                        router.shareText(RoomInvite.standingShareText(table.name, weekday, time, state.room!!.code, inviteShareBaseUrl()))
-                        KLog.logEvent("standing_table.invite_shared", "surface" to "lobby")
+                    val room = state.room
+                    val table = room?.standingTable.takeIf { standingTablesEnabled() }
+                    if (room == null || table == null) {
+                        router.shareText(message)
+                    } else {
+                        val baseUrl = inviteShareBaseUrl()
+                        scope.launch {
+                            shareStandingInvite(router, table.name, table.weekday, table.localTime, room.code, baseUrl, "lobby")
+                        }
                     }
                 },
                 inviteShareBaseUrl = inviteShareBaseUrl(),

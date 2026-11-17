@@ -8,7 +8,7 @@ import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.navigation.CalendarLauncher
 import com.dangerfield.cards.libraries.navigation.CalendarResult
 import com.dangerfield.cards.libraries.navigation.RecurringCalendarEvent
-import com.dangerfield.cards.libraries.navigation.weeklyRule
+import com.dangerfield.cards.libraries.navigation.WEEKLY_RECURRENCE_RULE
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -24,7 +24,7 @@ class AndroidCalendarLauncher(
         val activity = activityProvider.currentActivity() ?: return CalendarResult.Unavailable
         val intent = Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI).apply {
             putExtra(CalendarContract.Events.TITLE, event.title)
-            putExtra(CalendarContract.Events.DESCRIPTION, "${event.notes}\n${event.url}")
+            putExtra(CalendarContract.Events.DESCRIPTION, event.descriptionWithUrl)
             putExtra(CalendarContract.Events.EVENT_LOCATION, event.url)
             putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, event.startEpochMilliseconds)
             putExtra(
@@ -32,7 +32,7 @@ class AndroidCalendarLauncher(
                 event.startEpochMilliseconds + event.durationMinutes * 60_000L,
             )
             putExtra(CalendarContract.Events.EVENT_TIMEZONE, event.timeZoneId)
-            putExtra(CalendarContract.Events.RRULE, weeklyRule(event.weekday))
+            putExtra(CalendarContract.Events.RRULE, WEEKLY_RECURRENCE_RULE)
         }
         if (intent.resolveActivity(activity.packageManager) == null) return CalendarResult.Unavailable
         // ACTION_INSERT reports only that the editor opened, never whether the user saved.

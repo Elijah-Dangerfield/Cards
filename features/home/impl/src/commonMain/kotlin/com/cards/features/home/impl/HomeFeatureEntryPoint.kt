@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.backhandler.BackHandler
@@ -92,11 +93,13 @@ class HomeFeatureEntryPoint(
             // observer that writes it.
             var outOfChipsBuyIn by remember { mutableStateOf<Long?>(null) }
             // Non-null = the update sheet is open, carrying the version it quotes.
-            var updateVersion by remember { mutableStateOf<String?>(null) }
-            var featureIntro by remember { mutableStateOf<FeatureIntro?>(null) }
-            val shownFeatureIntros = remember { mutableSetOf<FeatureIntro>() }
+            // Saveable, along with the intro below: either can be held back behind
+            // another overlay, and leaving Home before it shows must not drop it.
+            var updateVersion by rememberSaveable { mutableStateOf<String?>(null) }
+            var featureIntroId by rememberSaveable { mutableStateOf<String?>(null) }
+            val featureIntro = FeatureIntro.entries.firstOrNull { it.id == featureIntroId }
             LaunchedEffect(homeState.standingTablesEnabled) {
-                if (!homeState.standingTablesEnabled) featureIntro = null
+                if (!homeState.standingTablesEnabled) featureIntroId = null
             }
             ObserveWithLifecycle(viewModel.eventFlow) { event ->
                 when (event) {
@@ -123,7 +126,7 @@ class HomeFeatureEntryPoint(
                         updateVersion = event.latestVersion
                     }
                     is HomeEvent.ShowFeatureIntro -> {
-                        featureIntro = event.intro
+                        featureIntroId = event.intro.id
                     }
                     // The confirmed Forfeit's leave failed — the banner stays (the
                     // observed rooms flow is untouched), so tell the user their
@@ -310,14 +313,12 @@ class HomeFeatureEntryPoint(
                 homeState.standingTablesEnabled && !hasActiveOverlay
             }?.let { intro ->
                 LaunchedEffect(intro) {
-                    if (shownFeatureIntros.add(intro)) {
-                        KLog.logEvent("feature_intro.shown", "feature" to intro.id)
-                    }
+                    viewModel.takeAction(HomeAction.FeatureIntroShown(intro))
                 }
                 FeatureIntroSheet(
                     intro = intro,
                     onPrimary = {
-                        featureIntro = null
+                        featureIntroId = null
                         KLog.logEvent("feature_intro.acted", "feature" to intro.id, "action" to "primary")
                         when (intro) {
                             FeatureIntro.StandingTables -> {
@@ -327,7 +328,7 @@ class HomeFeatureEntryPoint(
                         }
                     },
                     onDismiss = {
-                        featureIntro = null
+                        featureIntroId = null
                         KLog.logEvent("feature_intro.acted", "feature" to intro.id, "action" to "dismiss")
                     },
                 )

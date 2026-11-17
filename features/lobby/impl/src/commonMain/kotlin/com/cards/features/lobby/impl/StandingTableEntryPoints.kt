@@ -32,6 +32,9 @@ import com.dangerfield.cards.libraries.rooms.StandingTable
 import com.dangerfield.cards.libraries.ui.components.room.formatStandingTime
 import com.dangerfield.cards.libraries.ui.components.room.weekdayNameResource
 import kotlinx.coroutines.flow.Flow
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalTime
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.getString
 
 internal fun NavGraphBuilder.standingTableScreens(
@@ -103,8 +106,8 @@ internal fun NavGraphBuilder.standingTableScreens(
                 when (event) {
                     is StandingTableEvent.Open -> router.navigate(LobbyRoute(prefilledCode = event.code))
                     is StandingTableEvent.Edit -> router.navigate(StandingTableEditRoute(event.code))
-                    is StandingTableEvent.Share -> shareStandingTable(router, event.table, baseUrl(), "detail")
-                    is StandingTableEvent.AddCalendar -> addStandingTableCalendar(router, event.table, baseUrl(), "detail")
+                    is StandingTableEvent.Share -> launch { shareStandingTable(router, event.table, baseUrl(), "detail") }
+                    is StandingTableEvent.AddCalendar -> launch { addStandingTableCalendar(router, event.table, baseUrl(), "detail") }
                     StandingTableEvent.Removed -> router.goBack()
                 }
             }
@@ -113,14 +116,25 @@ internal fun NavGraphBuilder.standingTableScreens(
     }
 }
 
-internal suspend fun shareStandingTable(router: Router, table: StandingTable, baseUrl: String, surface: String) {
-    val weekday = getString(weekdayNameResource(table.weekday))
+internal suspend fun shareStandingTable(router: Router, table: StandingTable, baseUrl: String, surface: String) =
+    shareStandingInvite(router, table.name, table.weekday, table.localTime, table.code, baseUrl, surface)
+
+internal suspend fun shareStandingInvite(
+    router: Router,
+    name: String,
+    weekday: DayOfWeek,
+    localTime: LocalTime,
+    code: String,
+    baseUrl: String,
+    surface: String,
+) {
+    val weekdayName = getString(weekdayNameResource(weekday))
     val time = formatStandingTime(
-        table.localTime,
+        localTime,
         getString(Res.string.ui_schedule_am),
         getString(Res.string.ui_schedule_pm),
     )
-    router.shareText(RoomInvite.standingShareText(table.name, weekday, time, table.code, baseUrl))
+    router.shareText(RoomInvite.standingShareText(name, weekdayName, time, code, baseUrl))
     KLog.logEvent("standing_table.invite_shared", "surface" to surface)
 }
 

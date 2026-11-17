@@ -12,10 +12,12 @@ import com.dangerfield.cards.libraries.rooms.StandingTable
 import com.dangerfield.cards.libraries.rooms.StandingTableDraft
 import com.dangerfield.cards.libraries.rooms.StandingTableRepository
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ResponseException
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
+import kotlinx.io.IOException
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -130,5 +132,6 @@ private fun Throwable.operationFailureReason(): String = when {
         HttpStatusCode.TooManyRequests -> "rate_limited"
         else -> if (response.status.value >= 500) "server" else "http"
     }
-    else -> "network"
+    this is HttpRequestTimeoutException || this is IOException -> "network"
+    else -> "unknown"
 }

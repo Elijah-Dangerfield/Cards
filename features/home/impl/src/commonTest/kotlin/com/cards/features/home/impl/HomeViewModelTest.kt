@@ -1284,18 +1284,44 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun featureIntroWritesSeenBeforeSendingAndDoesNotRepeat() = runUnitTest {
+    fun featureIntroIsMarkedSeenOnlyOnceTheSheetIsShownAndDoesNotRepeat() = runUnitTest {
         val cache = FakeAppCache()
         val progression = FakeProgressionRepository(Progression.Empty.copy(handsPlayed = 1))
         val vm = buildVm(appCache = cache, progression = progression, standingTablesEnabled = true)
         vm.eventFlow.test {
             vm.takeAction(HomeAction.ScreenResumed)
-            assertEquals(setOf("standing_tables"), cache.get().featureIntrosSeen)
             assertEquals(HomeEvent.ShowFeatureIntro(FeatureIntro.StandingTables), awaitItem())
+            assertEquals(emptySet(), cache.get().featureIntrosSeen)
+            vm.takeAction(HomeAction.ScreenPaused)
+            vm.takeAction(HomeAction.ScreenResumed)
+            yield()
+            expectNoEvents()
+            vm.takeAction(HomeAction.FeatureIntroShown(FeatureIntro.StandingTables))
+            yield()
+            assertEquals(setOf("standing_tables"), cache.get().featureIntrosSeen)
+            vm.takeAction(HomeAction.FeatureIntroShown(FeatureIntro.StandingTables))
+            yield()
             assertEquals(setOf("standing_tables"), cache.get().featureIntrosSeen)
             vm.takeAction(HomeAction.ScreenPaused)
             vm.takeAction(HomeAction.ScreenResumed)
+            yield()
             expectNoEvents()
+        }
+    }
+
+    @Test
+    fun featureIntroThatNeverShowsIsOfferedAgainNextProcess() = runUnitTest {
+        val cache = FakeAppCache()
+        val progression = FakeProgressionRepository(Progression.Empty.copy(handsPlayed = 1))
+        val first = buildVm(appCache = cache, progression = progression, standingTablesEnabled = true)
+        first.eventFlow.test {
+            first.takeAction(HomeAction.ScreenResumed)
+            assertEquals(HomeEvent.ShowFeatureIntro(FeatureIntro.StandingTables), awaitItem())
+        }
+        val next = buildVm(appCache = cache, progression = progression, standingTablesEnabled = true)
+        next.eventFlow.test {
+            next.takeAction(HomeAction.ScreenResumed)
+            assertEquals(HomeEvent.ShowFeatureIntro(FeatureIntro.StandingTables), awaitItem())
         }
     }
 

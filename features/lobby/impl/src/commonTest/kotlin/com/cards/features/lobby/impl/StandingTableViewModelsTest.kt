@@ -86,7 +86,7 @@ class StandingTableViewModelsTest : CoroutineTest() {
         assertFalse(editor.state.isSubmitting)
         val regularRepo = FakeStandingTableRepository(listOf(table().copy(isOwner = false)))
         regularRepo.leaveOutcome = Result.failure(IllegalStateException("offline"))
-        val regular = StandingTableViewModel("K7M2QX", false, regularRepo, StandingTablesEnabled.forTest(true))
+        val regular = detailVm(regularRepo)
         regular.eventFlow.test {
             regular.takeAction(StandingTableAction.Remove)
             expectNoEvents()
@@ -126,7 +126,7 @@ class StandingTableViewModelsTest : CoroutineTest() {
     @Test
     fun detailLoadsJustCreatedAndRoutesActionsThroughEvents() = runUnitTest {
         val repo = FakeStandingTableRepository(listOf(table()))
-        val vm = StandingTableViewModel("K7M2QX", true, repo, StandingTablesEnabled.forTest(true))
+        val vm = detailVm(repo, justCreated = true)
         assertEquals(table(), vm.state.table)
         assertTrue(vm.state.justCreated)
         vm.eventFlow.test {
@@ -142,7 +142,7 @@ class StandingTableViewModelsTest : CoroutineTest() {
     @Test
     fun deleteRequiresConfirmationAndOwnershipAndKeepsErrorOnFailure() = runUnitTest {
         val repo = FakeStandingTableRepository(listOf(table()))
-        val vm = StandingTableViewModel("K7M2QX", false, repo, StandingTablesEnabled.forTest(true))
+        val vm = detailVm(repo)
         vm.takeAction(StandingTableAction.ConfirmDelete)
         assertEquals(null, repo.archivedCode)
         vm.takeAction(StandingTableAction.RequestDelete)
@@ -156,7 +156,7 @@ class StandingTableViewModelsTest : CoroutineTest() {
             assertEquals(StandingTableEvent.Removed, awaitItem())
         }
         val regularRepo = FakeStandingTableRepository(listOf(table().copy(isOwner = false)))
-        val regular = StandingTableViewModel("K7M2QX", false, regularRepo, StandingTablesEnabled.forTest(true))
+        val regular = detailVm(regularRepo)
         regular.takeAction(StandingTableAction.RequestDelete)
         regular.takeAction(StandingTableAction.ConfirmDelete)
         assertEquals(null, regularRepo.archivedCode)
@@ -171,10 +171,20 @@ class StandingTableViewModelsTest : CoroutineTest() {
     fun detailGetFailureAndDisabledFlagDoNotLeakTable() = runUnitTest {
         val repo = FakeStandingTableRepository()
         repo.getOutcome = Result.failure(IllegalStateException("offline"))
-        val vm = StandingTableViewModel("K7M2QX", false, repo, StandingTablesEnabled.forTest(true))
+        val vm = detailVm(repo)
         assertTrue(vm.state.error)
-        val disabled = StandingTableViewModel("K7M2QX", false, FakeStandingTableRepository(listOf(table())), StandingTablesEnabled.forTest(false))
+        val disabled = detailVm(FakeStandingTableRepository(listOf(table())), enabled = false)
         assertEquals(null, disabled.state.table)
+    }
+
+    @Test
+    fun detailFetchesOnlyWhenTheScreenAsksSoOpeningLoadsOnce() = runUnitTest {
+        val repo = FakeStandingTableRepository(listOf(table()))
+        val vm = StandingTableViewModel("K7M2QX", false, repo, StandingTablesEnabled.forTest(true))
+        assertEquals(0, repo.getCalls)
+        vm.takeAction(StandingTableAction.Refresh)
+        assertEquals(1, repo.getCalls)
+        assertEquals(table(), vm.state.table)
     }
 
     @Test
@@ -189,6 +199,14 @@ class StandingTableViewModelsTest : CoroutineTest() {
     private val clock = Clock.fixed(Instant.parse("2026-11-19T17:00:00Z"))
     private fun createVm(repo: FakeStandingTableRepository, enabled: Boolean = true) =
         StandingTableCreateViewModel(null, repo, clock, StandingTablesEnabled.forTest(enabled))
+
+    private fun detailVm(
+        repo: FakeStandingTableRepository,
+        justCreated: Boolean = false,
+        enabled: Boolean = true,
+    ) = StandingTableViewModel("K7M2QX", justCreated, repo, StandingTablesEnabled.forTest(enabled)).also {
+        it.takeAction(StandingTableAction.Refresh)
+    }
 
     private fun table() = StandingTable(
         "K7M2QX", "Thursday Night Poker", "owner", "Alex", true, 5000, 6,
