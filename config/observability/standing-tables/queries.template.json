@@ -3,7 +3,7 @@
     "id": "operations",
     "title": "Client operations by outcome",
     "source": "loki",
-    "expr": "sum by (operation,outcome,reason) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" [1h]))",
+    "expr": "sum by (operation,outcome,reason) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.operation_completed\" [1h]))",
     "description": "Per repository call, including background mine refreshes after writes. Separate write success from refresh failure.",
     "unit": "short"
   },
@@ -11,7 +11,7 @@
     "id": "creates",
     "title": "Create outcomes",
     "source": "loki",
-    "expr": "sum by (outcome,reason) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" | operation=\"create\" [1h]))",
+    "expr": "sum by (outcome,reason) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.operation_completed\" | operation=\"create\" [1h]))",
     "description": "Terminal create repository calls. UI create_started counts entry intent and is not a request denominator.",
     "unit": "short"
   },
@@ -19,7 +19,7 @@
     "id": "client_errors",
     "title": "Client operation failure %",
     "source": "loki",
-    "expr": "100 * ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" | outcome=\"failure\" [1h]))) or (0 * ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" [1h]))) > 0))) / ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" [1h]))) > 0)",
+    "expr": "100 * ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.operation_completed\" | outcome=\"failure\" [1h]))) or (0 * ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.operation_completed\" [1h]))) > 0))) / ((sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.operation_completed\" [1h]))) > 0)",
     "description": "All repository failures, including validation, auth and network. Zero means no counted failures; inspect traffic alongside it.",
     "unit": "percent"
   },
@@ -27,7 +27,7 @@
     "id": "decode",
     "title": "Client decode failures",
     "source": "loki",
-    "expr": "sum by (operation) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" | reason=\"decode\" [1h]))",
+    "expr": "sum by (operation) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.operation_completed\" | reason=\"decode\" [1h]))",
     "description": "Response decoding or domain mapping failed. Includes mine, get, create and update.",
     "unit": "short"
   },
@@ -35,7 +35,7 @@
     "id": "client_traffic",
     "title": "Client operation volume",
     "source": "loki",
-    "expr": "(sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.operation_completed\" [1h])) or vector(0))",
+    "expr": "(sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.operation_completed\" [1h])) or vector(0))",
     "description": "Number of terminal repository operations over one hour. No traffic is not proof of health.",
     "unit": "short"
   },
@@ -43,7 +43,7 @@
     "id": "create_entries",
     "title": "Create entry intent",
     "source": "loki",
-    "expr": "sum by (entry) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.create_started\" [1h]))",
+    "expr": "sum by (entry) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.create_started\" [1h]))",
     "description": "Chooser versus feature intro. Compare to terminal creates as activity, not a cohort conversion rate.",
     "unit": "short"
   },
@@ -51,7 +51,7 @@
     "id": "shares",
     "title": "Invite share actions",
     "source": "loki",
-    "expr": "sum by (surface) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.invite_shared\" [1h]))",
+    "expr": "sum by (surface) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.invite_shared\" [1h]))",
     "description": "System share action handed off, not confirmed delivery.",
     "unit": "short"
   },
@@ -59,7 +59,7 @@
     "id": "calendar",
     "title": "Calendar outcomes",
     "source": "loki",
-    "expr": "sum by (platform,result,surface) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.calendar_added\" [1h]))",
+    "expr": "sum by (platform,result,surface) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.calendar_added\" [1h]))",
     "description": "iOS added confirms save; Android opened only confirms editor launch. Unavailable falls back to .ics; cancelled is not a failure.",
     "unit": "short"
   },
@@ -67,7 +67,7 @@
     "id": "client_join",
     "title": "Client standing join successes",
     "source": "loki",
-    "expr": "(sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"room.joined\" | is_standing_table=\"true\" [1h])) or vector(0))",
+    "expr": "(sum(count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"room.joined\" | is_standing_table=\"true\" [1h])) or vector(0))",
     "description": "Confirmed standing room summary on a successful join. Not a link-attributed funnel.",
     "unit": "short"
   },
@@ -75,7 +75,7 @@
     "id": "client_join_failures",
     "title": "Known standing join failures",
     "source": "loki",
-    "expr": "sum by (reason) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"room.join_failed\" | is_standing_table=\"true\" [1h]))",
+    "expr": "sum by (reason) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"room.join_failed\" | is_standing_table=\"true\" [1h]))",
     "description": "Only failures attributable to a known standing code; unknown-code failures omit this attribute, so this is not a complete denominator.",
     "unit": "short"
   },
@@ -83,7 +83,7 @@
     "id": "share_outcomes",
     "title": "Share requests by semantic outcome",
     "source": "prometheus",
-    "expr": "sum by (surface,outcome) (increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__}[1h]))",
+    "expr": "sum by (surface,outcome) (increase(cards_standing_tables_share_requests_total{job=\"cards-server\",deployment_environment=\"${env}\"}[1h]))",
     "description": "Includes HTTP 200 unknown/archived responses. page, calendar and preview are separate surfaces; bots and repeat requests count.",
     "unit": "short"
   },
@@ -91,7 +91,7 @@
     "id": "page_standing",
     "title": "Standing invite page responses",
     "source": "prometheus",
-    "expr": "(sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__,surface=\"page\",outcome=\"standing\"}[1h])) or vector(0))",
+    "expr": "(sum(increase(cards_standing_tables_share_requests_total{job=\"cards-server\",deployment_environment=\"${env}\",surface=\"page\",outcome=\"standing\"}[1h])) or vector(0))",
     "description": "Page responses only, excluding preview crawlers and calendar requests. Not distinct people.",
     "unit": "short"
   },
@@ -99,7 +99,7 @@
     "id": "page_unavailable",
     "title": "Unknown or archived page responses",
     "source": "prometheus",
-    "expr": "sum by (outcome) (increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__,surface=\"page\",outcome=~\"unknown|archived\"}[1h]))",
+    "expr": "sum by (outcome) (increase(cards_standing_tables_share_requests_total{job=\"cards-server\",deployment_environment=\"${env}\",surface=\"page\",outcome=~\"unknown|archived\"}[1h]))",
     "description": "Semantic unavailable responses even when HTTP status is 200. Expected expired links do not page the owner.",
     "unit": "short"
   },
@@ -107,7 +107,7 @@
     "id": "server_join",
     "title": "Standing joins by outcome",
     "source": "prometheus",
-    "expr": "sum by (outcome) (increase(cards_standing_tables_join_requests_total{__SERVER_SELECTOR__}[1h]))",
+    "expr": "sum by (outcome) (increase(cards_standing_tables_join_requests_total{job=\"cards-server\",deployment_environment=\"${env}\"}[1h]))",
     "description": "Known standing codes only. Lookup errors before attribution remain in generic HTTP telemetry.",
     "unit": "short"
   },
@@ -115,7 +115,7 @@
     "id": "join_conversion",
     "title": "Standing join request success %",
     "source": "prometheus",
-    "expr": "100 * ((sum(increase(cards_standing_tables_join_requests_total{__SERVER_SELECTOR__,outcome=~\"joined|already_joined\"}[1h]))) or (0 * ((sum(increase(cards_standing_tables_join_requests_total{__SERVER_SELECTOR__}[1h]))) > 0))) / ((sum(increase(cards_standing_tables_join_requests_total{__SERVER_SELECTOR__}[1h]))) > 0)",
+    "expr": "100 * ((sum(increase(cards_standing_tables_join_requests_total{job=\"cards-server\",deployment_environment=\"${env}\",outcome=~\"joined|already_joined\"}[1h]))) or (0 * ((sum(increase(cards_standing_tables_join_requests_total{job=\"cards-server\",deployment_environment=\"${env}\"}[1h]))) > 0))) / ((sum(increase(cards_standing_tables_join_requests_total{job=\"cards-server\",deployment_environment=\"${env}\"}[1h]))) > 0)",
     "description": "Successful or already-joined requests / all attributable standing join requests. Request conversion, not share-to-player attribution.",
     "unit": "percent"
   },
@@ -123,7 +123,7 @@
     "id": "materializations",
     "title": "Standing sitting materializations",
     "source": "prometheus",
-    "expr": "sum by (outcome) (increase(cards_standing_tables_materializations_total{__SERVER_SELECTOR__}[1h]))",
+    "expr": "sum by (outcome) (increase(cards_standing_tables_materializations_total{job=\"cards-server\",deployment_environment=\"${env}\"}[1h]))",
     "description": "created, reused and error. Existing live sittings can be reused without a new room.",
     "unit": "short"
   },
@@ -131,7 +131,7 @@
     "id": "share_error_rate",
     "title": "Share request error %",
     "source": "prometheus",
-    "expr": "100 * ((sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__,outcome=\"error\"}[1h]))) or (0 * ((sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__}[1h]))) > 0))) / ((sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__}[1h]))) > 0)",
+    "expr": "100 * ((sum(increase(cards_standing_tables_share_requests_total{job=\"cards-server\",deployment_environment=\"${env}\",outcome=\"error\"}[1h]))) or (0 * ((sum(increase(cards_standing_tables_share_requests_total{job=\"cards-server\",deployment_environment=\"${env}\"}[1h]))) > 0))) / ((sum(increase(cards_standing_tables_share_requests_total{job=\"cards-server\",deployment_environment=\"${env}\"}[1h]))) > 0)",
     "description": "Unexpected server errors / all share surface requests. Unknown/archived/invalid are semantic outcomes, not server errors.",
     "unit": "percent"
   },
@@ -139,7 +139,7 @@
     "id": "server_traffic",
     "title": "Share request volume",
     "source": "prometheus",
-    "expr": "(sum(increase(cards_standing_tables_share_requests_total{__SERVER_SELECTOR__}[1h])) or vector(0))",
+    "expr": "(sum(increase(cards_standing_tables_share_requests_total{job=\"cards-server\",deployment_environment=\"${env}\"}[1h])) or vector(0))",
     "description": "All share surfaces over one hour. Inspect before interpreting error percentages.",
     "unit": "short"
   },
@@ -147,7 +147,7 @@
     "id": "active_sessions",
     "title": "Sessions taking a standing-table action",
     "source": "loki",
-    "expr": "count(sum by (session_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=~\"standing_table.created|standing_table.opened|standing_table.invite_shared|standing_table.calendar_added\" | session_id!=\"\" [1h])))",
+    "expr": "count(sum by (session_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=~\"standing_table.created|standing_table.opened|standing_table.invite_shared|standing_table.calendar_added\" | session_id!=\"\" [1h])))",
     "description": "Unique sessions with create, open, share or calendar intent over a rolling hour. Aggregate count only; no identifiers shown. Not unique people, exposure or confirmed calendar saves.",
     "unit": "short"
   },
@@ -155,7 +155,7 @@
     "id": "creator_devices_7d",
     "title": "Creator devices, 7 days",
     "source": "loki",
-    "expr": "count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.created\" | install_id!=\"\" [7d])) > 0))",
+    "expr": "count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.created\" | install_id!=\"\" [7d])) > 0))",
     "description": "Devices emitting a successful standing-table creation in a rolling 7 days. install_id proxy, not accounts or people. Session sampling and delayed events can undercount.",
     "unit": "short"
   },
@@ -163,7 +163,7 @@
     "id": "standing_join_devices_7d",
     "title": "Standing join devices, 7 days",
     "source": "loki",
-    "expr": "count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"room.joined\" | is_standing_table=\"true\" | install_id!=\"\" [7d])) > 0))",
+    "expr": "count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"room.joined\" | is_standing_table=\"true\" | install_id!=\"\" [7d])) > 0))",
     "description": "Devices with a successful standing room join in a rolling 7 days. Joining does not prove a hand was played. Not weekly player adoption or unique accounts.",
     "unit": "short"
   },
@@ -171,7 +171,7 @@
     "id": "creator_share_devices_7d",
     "title": "Creator devices that also shared, 7 days",
     "source": "loki",
-    "expr": "100 * (count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.created\" | install_id!=\"\" [7d])) > 0) and on (install_id) (sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.invite_shared\" | install_id!=\"\" [7d])) > 0)) or (0 * (count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.created\" | install_id!=\"\" [7d])) > 0)) > 0))) / (count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=\"standing_table.created\" | install_id!=\"\" [7d])) > 0)) > 0)",
+    "expr": "100 * (count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.created\" | install_id!=\"\" [7d])) > 0) and on (install_id) (sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.invite_shared\" | install_id!=\"\" [7d])) > 0)) or (0 * (count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.created\" | install_id!=\"\" [7d])) > 0)) > 0))) / (count((sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.created\" | install_id!=\"\" [7d])) > 0)) > 0)",
     "description": "Percent of creator devices also emitting a standing invite share within the same rolling 7 days. Device-set intersection, not per-table conversion, delivered invites or account cohorts. Positive creator denominator required; no creators returns NoData.",
     "unit": "percent"
   },
@@ -179,8 +179,24 @@
     "id": "action_devices_7d",
     "title": "Devices taking a standing action, 7 days",
     "source": "loki",
-    "expr": "count(sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"__ENV__\"} | event_name=~\"standing_table.created|standing_table.opened|standing_table.invite_shared|standing_table.calendar_added\" | install_id!=\"\" [7d])) > 0)",
+    "expr": "count(sum by (install_id) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=~\"standing_table.created|standing_table.opened|standing_table.invite_shared|standing_table.calendar_added\" | install_id!=\"\" [7d])) > 0)",
     "description": "Devices with create, open, share or calendar intent over a rolling 7 days. install_id proxy, not people, confirmed calendar saves or D7 retention. Session sampling can miss actions.",
+    "unit": "short"
+  },
+  {
+    "id": "client_outage_6h",
+    "title": "Client outage failures, 6h",
+    "source": "loki",
+    "expr": "sum by (operation,reason) (count_over_time({service_name=\"cards-client\", deployment_environment=\"${env}\"} | event_name=\"standing_table.operation_completed\" | outcome=\"failure\" | reason=~\"network|server|decode|unknown\" [6h]))",
+    "description": "Client failures counted as outages by the alerts: network, server, decode and unknown. Offline, auth, invalid and conflict outcomes are excluded. Rolling 6h; the client and creation alerts fire on counts from this panel.",
+    "unit": "short"
+  },
+  {
+    "id": "server_errors_6h",
+    "title": "Standing server errors, 6h",
+    "source": "prometheus",
+    "expr": "label_replace(sum(increase(cards_standing_tables_share_requests_total{job=\"cards-server\",deployment_environment=\"${env}\",outcome=\"error\"}[6h])),\"metric\",\"share\",\"\",\"\") or label_replace(sum(increase(cards_standing_tables_join_requests_total{job=\"cards-server\",deployment_environment=\"${env}\",outcome=\"error\"}[6h])),\"metric\",\"join\",\"\",\"\") or label_replace(sum(increase(cards_standing_tables_materializations_total{job=\"cards-server\",deployment_environment=\"${env}\",outcome=\"error\"}[6h])),\"metric\",\"materialization\",\"\",\"\")",
+    "description": "Server error outcomes for share, join and materialization, the counts the three server alerts use. Rolling 6h. Semantic outcomes such as full, archived or unknown are excluded.",
     "unit": "short"
   }
 ]
