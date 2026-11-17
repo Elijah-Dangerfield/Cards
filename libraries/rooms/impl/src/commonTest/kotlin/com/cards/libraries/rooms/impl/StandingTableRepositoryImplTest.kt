@@ -9,6 +9,8 @@ import com.dangerfield.cards.libraries.rooms.CreateStandingTableOutcome
 import com.dangerfield.cards.libraries.rooms.RoomStatus
 import com.dangerfield.cards.libraries.rooms.StandingTableDraft
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpRequestTimeoutException
+import kotlinx.io.IOException
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -142,9 +144,18 @@ class StandingTableRepositoryImplTest : CoroutineTest() {
         assertOperation("create", "failure", "invalid")
         assertEquals(1, logs.entries.count { it.throwable != null })
         logs.entries.clear()
-        assertTrue(newRepo(MockEngine { error("connection refused") }).get("K7M2QX").isFailure)
+        assertTrue(newRepo(MockEngine { throw IOException("connection refused") }).get("K7M2QX").isFailure)
         assertOperation("get", "failure", "network")
         assertEquals(1, logs.entries.count { it.throwable != null })
+        logs.entries.clear()
+        assertTrue(newRepo(MockEngine { throw HttpRequestTimeoutException("standing-tables", 1) }).get("K7M2QX").isFailure)
+        assertOperation("get", "failure", "network")
+    }
+
+    @Test
+    fun unexpectedClientExceptionIsUnknownRatherThanAnOutage() = runUnitTest {
+        assertTrue(newRepo(MockEngine { error("client bug") }).get("K7M2QX").isFailure)
+        assertOperation("get", "failure", "unknown")
     }
 
     @Test
